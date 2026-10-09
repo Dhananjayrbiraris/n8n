@@ -108,7 +108,6 @@ erDiagram
   varchar_36_ childExecutionId
   varchar_128_ childThreadId
   datetime_3_ createdAt
-  boolean detached
   TEXT error
   varchar_36_ id PK
   varchar_16_ kind
