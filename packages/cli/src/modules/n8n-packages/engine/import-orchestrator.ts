@@ -1,13 +1,19 @@
 import { LicenseState } from '@n8n/backend-common';
-import { Service } from '@n8n/di';
+import { Container, Service } from '@n8n/di';
 
 import { NodeTypes } from '@/node-types';
 import type { PolicyActor } from '@/policy/policy-enforcement-backend';
 
+import {
+	requiredAgentScopes,
+	type AgentImportPlan,
+	type PreparedAgent,
+} from '../entities/agent/agent-import.types';
 import { CredentialImporter } from '../entities/credential/credential-importer';
 import { workflowsBlockedFromPublish } from '../entities/credential/credential-missing-mode';
 import type {
 	CredentialApplyResult,
+	CredentialImportPlan,
 	CredentialBindingRequest,
 	CredentialResolution,
 	CredentialResolutionFailure,
@@ -74,17 +80,25 @@ import type {
 import { mergeRequirementConsumers } from '../spec/requirement-consumers';
 import type {
 	PackageRequirementConsumer,
+	PackageAgentRequirement,
 	PackageWorkflowRequirement,
 } from '../spec/requirements.schema';
 import { ContentImportPolicyGate, contentImportTransport } from './content-import-policy';
 import { CredentialSavePolicyGate } from './credential-save-policy';
 import { toImportBlockedError } from './import-blocked.error';
-import { assertDataTableWritesAllowed, assertVariableWritesAllowed } from './import-gates';
+import {
+	assertDataTableWritesAllowed,
+	assertVariableWritesAllowed,
+	assertPackageImportApiKeyScopes,
+} from './import-gates';
+import { identifyRequirements } from './import-result';
 
 export interface ImportOrchestrationInput {
 	context: ImportContext;
 	folders: PreparedFolder[];
 	workflows: PreparedWorkflow[];
+	agents?: PreparedAgent[];
+	agentRequirements?: PackageAgentRequirement[];
 	credentialRequest: CredentialBindingRequest;
 	dataTableRequest: DataTableImportRequest;
 	variableRequest: VariableImportRequest;
@@ -119,8 +133,9 @@ export interface ImportContentResult {
 export interface ImportPlan {
 	input: ImportOrchestrationInput;
 	folderContext: FolderImportContext;
-	credentialPlan: CredentialResolution;
+	credentialPlan: CredentialImportPlan;
 	workflowPlan: WorkflowImportPlan;
+	agentPlan?: AgentImportPlan;
 	folderPlan: FolderImportPlan;
 	dataTablePlan: DataTableImportPlan;
 	variablePlan: VariableImportPlan;
@@ -131,10 +146,7 @@ export interface ImportPlan {
 	blockingIssues: BlockingIssue[];
 }
 
-/**
- * Coordinates the credential, folder, and workflow importers to bring a package's
- * contents into one resolved project scope
- */
+/** Coordinates entity planning and import across destination projects. */
 @Service()
 export class ImportOrchestrator {
 	constructor(
@@ -186,6 +198,12 @@ export class ImportOrchestrator {
 			if (variablePlan.overwrites.length > 0) {
 				await this.variableImporter.assertCanUpdate(input.context, variablePlan.overwrites);
 			}
+		}
+		for (const plan of plans) {
+			if (!plan.agentPlan) continue;
+			assertPackageImportApiKeyScopes(options.apiKeyScopes, requiredAgentScopes(plan.agentPlan));
+			if (plan.credentialPlan.stubIds.size > 0)
+				assertPackageImportApiKeyScopes(options.apiKeyScopes, ['credential:create']);
 		}
 
 		const issues = await this.collectPackageBlockingIssues(plans);
@@ -239,6 +257,46 @@ export class ImportOrchestrator {
 	}
 
 	async plan(input: ImportOrchestrationInput): Promise<ImportPlan> {
+		return (await this.planPackage([input]))[0];
+	}
+
+	async planPackage(inputs: ImportOrchestrationInput[]): Promise<ImportPlan[]> {
+		const plans: ImportPlan[] = [];
+		for (const input of inputs) plans.push(await this.planScope(input));
+		if (!plans.some((plan) => plan.agentPlan)) return plans;
+		const [{ AgentImporter }, { AgentImportBindings }] = await Promise.all([
+			import('../entities/agent/agent-importer.js'),
+			import('../entities/agent/agent-import-bindings.js'),
+		]);
+		await Container.get(AgentImportBindings).resolve(plans);
+		for (const plan of plans) {
+			if (!plan.agentPlan) continue;
+			await Container.get(AgentImporter).validate(
+				plan.agentPlan,
+				{
+					...plan.input.context,
+					projectPendingCreation: plan.input.projectPendingCreation,
+				},
+				plan.credentialPlan.stubIds.size > 0,
+			);
+			plan.blockingIssues.push(...plan.agentPlan.issues);
+		}
+		return plans;
+	}
+
+	private async planAgents(input: ImportOrchestrationInput): Promise<AgentImportPlan | undefined> {
+		if (!input.agents?.length) return undefined;
+		const { AgentImporter } = await import('../entities/agent/agent-importer.js');
+		return await Container.get(AgentImporter).plan(
+			{ ...input.context, projectPendingCreation: input.projectPendingCreation },
+			input.agents,
+			input.options,
+		);
+	}
+
+	private async planScope(input: ImportOrchestrationInput): Promise<ImportPlan> {
+		const agentPlan = await this.planAgents(input);
+		if (agentPlan) input = scopeAgentRequirements(input, agentPlan);
 		const {
 			context,
 			folders,
@@ -250,12 +308,13 @@ export class ImportOrchestrator {
 			options,
 		} = input;
 
-		await this.workflowPublisher.assertCanPublish(
-			context.user,
-			context.projectId,
-			options.workflowPublishingPolicy,
-			input.projectPendingCreation,
-		);
+		if (workflows.length > 0 || !agentPlan)
+			await this.workflowPublisher.assertCanPublish(
+				context.user,
+				context.projectId,
+				options.workflowPublishingPolicy,
+				input.projectPendingCreation,
+			);
 
 		const credentialPlan = await this.credentialImporter.plan(context, credentialRequest);
 		const dataTablePlan = await this.dataTableImporter.plan(context, dataTableRequest);
@@ -296,6 +355,15 @@ export class ImportOrchestrator {
 		const missingNodeTypes = collectMissingNodeTypes(
 			workflowPlan.items.filter((item) => item.action !== 'skip'),
 			(nodeType) => this.nodeTypes.getSupportedVersions(nodeType),
+			(agentPlan?.items ?? [])
+				.filter(({ action }) => action !== 'skip')
+				.map((item) => ({
+					agentId: item.sourceAgentId,
+					projectId: context.projectId,
+					nodes: (item.config?.tools ?? [])
+						.filter((tool) => tool.type === 'node')
+						.map(({ node }) => ({ type: node.nodeType, typeVersion: node.nodeTypeVersion })),
+				})),
 		);
 
 		const actor: PolicyActor = { kind: 'user', user: context.user };
@@ -332,6 +400,7 @@ export class ImportOrchestrator {
 
 		return {
 			input,
+			agentPlan,
 			folderContext,
 			credentialPlan,
 			workflowPlan,
@@ -523,6 +592,40 @@ export class ImportOrchestrator {
 			),
 		];
 	}
+}
+
+function scopeAgentRequirements(
+	input: ImportOrchestrationInput,
+	agentPlan: AgentImportPlan,
+): ImportOrchestrationInput {
+	const active = agentPlan.items.filter(({ action }) => action !== 'skip');
+	const filter = <T extends { usedBy: PackageRequirementConsumer[] }>(
+		requirements: T[] | undefined,
+	) => identifyRequirements(requirements, input.workflows, active);
+	const requirements = filter(input.credentialRequest.requirements);
+	const originalIds = new Set(input.credentialRequest.requirements?.map(({ id }) => id));
+	const activeIds = new Set(requirements?.map(({ id }) => id));
+	const bindings = input.credentialRequest.credentialBindings;
+	return {
+		...input,
+		agentRequirements: filter(input.agentRequirements),
+		subWorkflowRequirements: filter(input.subWorkflowRequirements),
+		credentialRequest: {
+			...input.credentialRequest,
+			requirements,
+			credentialBindings:
+				bindings &&
+				new Map([...bindings].filter(([id]) => !originalIds.has(id) || activeIds.has(id))),
+		},
+		dataTableRequest: {
+			...input.dataTableRequest,
+			requirements: filter(input.dataTableRequest.requirements),
+		},
+		variableRequest: {
+			...input.variableRequest,
+			requirements: filter(input.variableRequest.requirements),
+		},
+	};
 }
 
 function withBlockedFromPublish(

@@ -123,10 +123,7 @@ export class AgentSkillsService {
 		);
 		if (attach && !entity.schema) throw new UserError('Agent has no JSON config yet.');
 
-		for (const skill of skills) {
-			this.validateSkill(skill);
-		}
-		this.assertBatchSkillNamesAreUnique(entity.skills ?? {}, skills);
+		this.validateSkills(skills, entity.skills ?? {});
 
 		const previous = captureAgentMutation(entity);
 
@@ -257,6 +254,11 @@ export class AgentSkillsService {
 			delete skills[id];
 		}
 		entity.skills = skills;
+	}
+
+	validateSkills(skills: AgentSkill[], existing: Record<string, AgentSkill> = {}): void {
+		for (const skill of skills) this.validateSkill(skill);
+		this.assertBatchSkillNamesAreUnique(existing, skills);
 	}
 
 	private validateSkill(skill: AgentSkill): void {

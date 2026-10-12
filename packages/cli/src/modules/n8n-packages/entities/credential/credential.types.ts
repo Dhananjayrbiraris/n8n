@@ -43,6 +43,10 @@ export interface CredentialResolution {
 	failures: CredentialResolutionFailure[];
 }
 
+export interface CredentialImportPlan extends CredentialResolution {
+	stubIds: ImportBindingMap;
+}
+
 export interface CredentialApplyResult {
 	bindings: ImportBindingMap;
 	matched: string[];
