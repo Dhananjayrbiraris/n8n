@@ -12,6 +12,7 @@ import {
 	getAgentDefinitionContent,
 	getAgentTaskBody,
 	type AgentDefinition,
+	type AgentDefinitionMetadata,
 } from './utils/agent-definition';
 import { saveAgentDraftFenced } from './utils/agent-draft.utils';
 
@@ -51,6 +52,7 @@ export class AgentDefinitionService {
 		agent: Agent,
 		definition: AgentDefinition,
 		ctx: OperationContext = {},
+		metadata?: AgentDefinitionMetadata,
 	): Promise<boolean> {
 		return await this.transactionRunner.run(ctx, async (txCtx) => {
 			// Preserve workflow input names in the JSON configuration.
@@ -58,8 +60,13 @@ export class AgentDefinitionService {
 			agent.tools = deepCopy(definition.tools);
 			agent.skills = deepCopy(definition.skills);
 			if (agent.schema) agent.name = agent.schema.name;
-			await saveAgentDraftFenced(this.agentRepository, agent, txCtx);
-			return await this.taskRepository.replaceForAgent(agent.id, definition.tasks, txCtx);
+			await saveAgentDraftFenced(this.agentRepository, agent, txCtx, metadata);
+			return await this.taskRepository.replaceForAgent(
+				agent.id,
+				definition.tasks,
+				txCtx,
+				metadata?.sourceTaskIds,
+			);
 		});
 	}
 }

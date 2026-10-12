@@ -19,7 +19,13 @@ import {
 } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import { EventService, ProjectScopeService } from '@n8n/backend-services';
-import { In, isUniqueConstraintError, ProjectRelationRepository, type User } from '@n8n/db';
+import {
+	In,
+	isUniqueConstraintError,
+	ProjectRelationRepository,
+	TransactionRunner,
+	type User,
+} from '@n8n/db';
 import { Container, Service } from '@n8n/di';
 import { hasGlobalScope } from '@n8n/permissions';
 import { v4 as uuid } from 'uuid';
@@ -55,8 +61,26 @@ import {
 } from './repositories/agent.repository';
 import { SubAgentCleanupService } from './sub-agents/sub-agent-cleanup.service';
 import { createAgentCredentialProvider } from './utils/agent-credential-provider';
+import type {
+	CompleteAgentDefinition,
+	AgentDefinitionMetadata,
+	PlannedAgentDestinations,
+} from './utils/agent-definition';
+import { buildAgentMutationEvent } from './agent-modification-telemetry.service';
+import { AgentSaveCompletionService } from './agent-save-completion.service';
 
-type CreateAgentOptions = {
+type CreateAgentOptions =
+	| DraftAgentCreateOptions
+	| {
+			actor: PolicyActor;
+			id: string;
+			definition: CompleteAgentDefinition;
+			user: User;
+			metadata?: AgentDefinitionMetadata;
+			plannedDestinations?: PlannedAgentDestinations;
+	  };
+
+type DraftAgentCreateOptions = {
 	/** Who asked for the create, named on the policy block audit event. */
 	actor: PolicyActor;
 	availableInMCP?: boolean;
@@ -131,7 +155,13 @@ export class AgentsService {
 	async createOrAdopt(
 		projectId: string,
 		name: string,
-		{
+		options: CreateAgentOptions,
+	): Promise<{ agent: Agent; adopted: boolean }> {
+		await this.settingsService.assertEnabled();
+		if ('definition' in options) {
+			return { agent: await this.createCompleteDefinition(projectId, options), adopted: false };
+		}
+		const {
 			actor,
 			availableInMCP = false,
 			id,
@@ -141,9 +171,7 @@ export class AgentsService {
 			skills,
 			tools,
 			user,
-		}: CreateAgentOptions,
-	): Promise<{ agent: Agent; adopted: boolean }> {
-		await this.settingsService.assertEnabled();
+		} = options;
 		const { schemaConfig, integrations } = await this.prepareInitialConfig(projectId, name, {
 			schema,
 			user,
@@ -189,6 +217,82 @@ export class AgentsService {
 		}
 
 		return { agent: saved, adopted: false };
+	}
+
+	private async createCompleteDefinition(
+		projectId: string,
+		options: Extract<CreateAgentOptions, { definition: CompleteAgentDefinition }>,
+	): Promise<Agent> {
+		const { AgentConfigPreparationService } = await import('./agent-config-preparation.service.js');
+		const preparation = Container.get(AgentConfigPreparationService);
+		const { id, user, metadata } = options;
+		await preparation.assertCanSaveDefinition(projectId, user, 'create');
+		const { definition, credentialProvider } = await preparation.prepareDefinition(
+			id,
+			options.definition,
+			projectId,
+			user,
+			options.plannedDestinations,
+		);
+		const { schemaConfig, integrations } = definition.config
+			? decomposeJsonConfig(definition.config)
+			: { schemaConfig: null, integrations: [] };
+		await this.agentPolicyService.enforceSave(
+			projectId,
+			null,
+			definition.config ?? { name: definition.name },
+			null,
+			options.actor,
+		);
+		const agent = this.agentRepository.create({
+			id,
+			projectId,
+			name: definition.config?.name ?? definition.name,
+			schema: schemaConfig,
+			integrations,
+			skills: definition.skills,
+			tools: definition.tools,
+			sourceAgentId: metadata?.sourceAgentId ?? null,
+			availableInMCP: metadata?.availableInMCP ?? false,
+			versionId: uuid(),
+			activeVersionId: null,
+			setupCompletedAt: null,
+		});
+		await Container.get(TransactionRunner).run({}, async (ctx) => {
+			try {
+				await this.agentRepository.insertNew(agent, ctx);
+			} catch (error) {
+				if (isUniqueConstraintError(error)) throw new ConflictError('Agent already exists');
+				throw error;
+			}
+			await this.agentTaskRepository.replaceForAgent(
+				id,
+				definition.tasks,
+				ctx,
+				metadata?.sourceTaskIds,
+			);
+		});
+		await Container.get(AgentSaveCompletionService).definitionSaved(
+			buildAgentMutationEvent(
+				agent,
+				projectId,
+				{ user, modifiedBy: 'user' },
+				{
+					schema: null,
+					integrations: [],
+					wasUnconfigured: true,
+				},
+				{
+					skills: Object.keys(agent.skills).length > 0,
+					tools: Object.keys(agent.tools).length > 0,
+					tasks: definition.tasks.size > 0,
+				},
+			),
+			[],
+			credentialProvider,
+			definition.tasks,
+		);
+		return agent;
 	}
 
 	/**
@@ -525,7 +629,11 @@ export class AgentsService {
 	private async prepareInitialConfig(
 		projectId: string,
 		name: string,
-		{ schema, user, defaultModel }: Pick<CreateAgentOptions, 'schema' | 'user' | 'defaultModel'>,
+		{
+			schema,
+			user,
+			defaultModel,
+		}: Pick<DraftAgentCreateOptions, 'schema' | 'user' | 'defaultModel'>,
 	): Promise<ReturnType<typeof decomposeJsonConfig>> {
 		const defaultConfig: AgentJsonConfig = {
 			name,

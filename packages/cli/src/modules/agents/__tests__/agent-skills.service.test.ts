@@ -132,6 +132,7 @@ describe('AgentSkillsService', () => {
 				},
 			}),
 			{},
+			undefined,
 		);
 	});
 
@@ -492,6 +493,7 @@ describe('AgentSkillsService', () => {
 				},
 			}),
 			{},
+			undefined,
 		);
 	});
 

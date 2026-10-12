@@ -1,5 +1,9 @@
 import type { CredentialProvider } from '@n8n/agents';
-import type { AgentJsonConfig } from '@n8n/api-types';
+import type {
+	AgentConfigValidationResponse,
+	AgentJsonConfig,
+	AgentTaskConfig,
+} from '@n8n/api-types';
 import type { User } from '@n8n/db';
 import { Service } from '@n8n/di';
 import { TELEMETRY_EVENT } from '@n8n/telemetry';
@@ -49,15 +53,27 @@ export class AgentSetupCompletionService {
 		projectId: string,
 		credentialProvider: CredentialProvider,
 		user?: User,
+		tasks?: ReadonlyMap<string, AgentTaskConfig>,
 	): Promise<EmitSetupCompleted | null> {
 		const counts = countAgentCapabilities(agent.schema, agent.integrations);
 		if (!this.isPending(agent, counts)) return null;
 
-		const validation = await this.agentValidationService.validateLoadedAgentConfiguration(
-			agent,
-			projectId,
-			credentialProvider,
-		);
+		// A complete save already holds the task bodies. Do not reload a newer draft for its event.
+		let validation: AgentConfigValidationResponse;
+		if (tasks) {
+			validation = await this.agentValidationService.validateAgentEntityConfiguration(
+				agent,
+				projectId,
+				tasks,
+				credentialProvider,
+			);
+		} else {
+			validation = await this.agentValidationService.validateLoadedAgentConfiguration(
+				agent,
+				projectId,
+				credentialProvider,
+			);
+		}
 		if (validation.status !== 'valid') return null;
 
 		return this.claim(agent, projectId, counts, user);

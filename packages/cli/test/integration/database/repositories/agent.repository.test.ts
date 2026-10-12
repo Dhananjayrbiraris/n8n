@@ -213,10 +213,10 @@ describe('AgentRepository', () => {
 		});
 
 		it('replaces the complete draft and preserves existing task creation times', async () => {
-			const agent = await createAgent();
+			const agent = await createAgent({ sourceAgentId: 'source-agent', availableInMCP: true });
 			const createdAt = new Date('2025-01-01T00:00:00.000Z');
 			await taskRepo.insert([
-				{ id: 'task-keep', agentId: agent.id, ...taskBody, createdAt },
+				{ id: 'task-keep', sourceTaskId: 'source-task', agentId: agent.id, ...taskBody, createdAt },
 				{ id: 'task-remove', agentId: agent.id, ...taskBody },
 			]);
 			const definitions = new Map([
@@ -266,12 +266,19 @@ describe('AgentRepository', () => {
 				tools: definition.tools,
 				skills: definition.skills,
 				revision: 1,
+				sourceAgentId: 'source-agent',
+				availableInMCP: true,
 			});
 			const tasks = await taskRepo.findByAgentId(agent.id);
 			expect(tasks).toHaveLength(2);
 			expect(tasks).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ id: 'task-keep', objective: 'Restored objective', createdAt }),
+					expect.objectContaining({
+						id: 'task-keep',
+						sourceTaskId: 'source-task',
+						objective: 'Restored objective',
+						createdAt,
+					}),
 					expect.objectContaining({ id: 'task-new', objective: taskBody.objective }),
 				]),
 			);
