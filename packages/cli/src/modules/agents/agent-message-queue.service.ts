@@ -34,6 +34,7 @@ import {
 	type QueuedUserChatMessage,
 } from './types/agent-queued-message';
 import {
+	canContinueSystemThread,
 	canContinueThreadInN8nChat,
 	canContinueThreadInPreview,
 	type AgentSessionMode,
@@ -345,9 +346,7 @@ export class AgentMessageQueueService {
 		if (
 			thread.projectId !== input.projectId ||
 			thread.agentId !== input.agentId ||
-			!(input.kind === 'n8n_chat'
-				? canContinueThreadInN8nChat(thread, input.userId, source)
-				: canContinueThreadInPreview(thread, input.userId, source))
+			!canContinueThread(input.kind, thread, input.userId, source)
 		) {
 			throw new NotFoundError('Session not found');
 		}
@@ -508,4 +507,20 @@ export class AgentMessageQueueService {
 
 function isHidden(item: AgentMessageQueue): boolean {
 	return item.message.origin?.hidden === true;
+}
+
+function canContinueThread(
+	kind: QueuedUserChatMessage['kind'],
+	thread: AgentExecutionThread,
+	userId: string,
+	source: string | null | undefined,
+): boolean {
+	switch (kind) {
+		case 'n8n_chat':
+			return canContinueThreadInN8nChat(thread, userId, source);
+		case 'system':
+			return canContinueSystemThread(thread, userId, source);
+		case 'preview':
+			return canContinueThreadInPreview(thread, userId, source);
+	}
 }

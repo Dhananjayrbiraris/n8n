@@ -23,6 +23,8 @@ import { AgentMessageQueueRepository } from './repositories/agent-message-queue.
 import { canUseSystemAgent } from './system-agents/system-agent-access';
 import { SystemAgentExecutionService } from './system-agents/system-agent-execution.service';
 import { SystemAgentRegistry } from './system-agents/system-agent-registry';
+import type { AgentQueuedMessage } from './types/agent-queued-message';
+import type { AgentChatSurface } from './utils/agent-thread-access';
 
 @Service()
 export class AgentMessageQueueConsumer {
@@ -150,7 +152,7 @@ export class AgentMessageQueueConsumer {
 						threadId: thread.id,
 						userId: user.id,
 						executionId: admission.executionId,
-						surface: payload.kind === 'n8n_chat' ? 'n8n-chat' : 'preview',
+						surface: chatSurfaceFor(payload.kind),
 					},
 					controller,
 				);
@@ -314,4 +316,9 @@ export class AgentMessageQueueConsumer {
 		if (!bridge) throw new OperationalError('The message integration is unavailable');
 		await bridge.consumeQueuedMessage(payload, thread.id, claim.admission, signal, connection);
 	}
+}
+
+function chatSurfaceFor(kind: AgentQueuedMessage['kind']): AgentChatSurface {
+	if (kind === 'n8n_chat') return 'n8n-chat';
+	return kind === 'system' ? 'system' : 'preview';
 }

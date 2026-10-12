@@ -464,7 +464,7 @@ describe('AgentMessageQueueConsumer', () => {
 			const item = claim(threadId);
 			return {
 				...item,
-				payload: { kind: 'system', message: 'input', resourceId: 'draft-chat:user' },
+				payload: { kind: 'system', message: 'input', resourceId: 'system-chat:user' },
 				item: mock<AgentMessageQueue>({ ...item.item, payload: { kind: 'system' } }),
 			};
 		}
@@ -492,6 +492,10 @@ describe('AgentMessageQueueConsumer', () => {
 				expect.objectContaining({ id: 'user' }),
 				expect.any(AbortSignal),
 				sender.send,
+			);
+			expect(chatExecutions.register).toHaveBeenCalledWith(
+				expect.objectContaining({ userId: 'user', surface: 'system' }),
+				expect.any(AbortController),
 			);
 			// The runtime floor (`project:read`) and the provider decide access,
 			// not the project `agent:execute` scope.

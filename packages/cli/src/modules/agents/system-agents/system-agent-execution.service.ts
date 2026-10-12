@@ -21,8 +21,9 @@ import { AgentExecutionThreadRepository } from '../repositories/agent-execution-
 import { AgentRepository } from '../repositories/agent.repository';
 import type { StoredAttachmentRef } from '../types/agent-chat-attachment';
 import type { AgentExecutionAdmission } from '../types/agent-queued-message';
-import { draftChatMemoryResourceId } from '../utils/agent-memory-scope';
+import { systemChatMemoryResourceId } from '../utils/agent-memory-scope';
 import { buildInboundUserMessage } from '../utils/inbound-attachments';
+import { SYSTEM_CHAT_SOURCE } from '../utils/agent-thread-access';
 import { canUseSystemAgent } from './system-agent-access';
 import { SystemAgentRegistry } from './system-agent-registry';
 import type {
@@ -39,12 +40,6 @@ type SuspendedToolCall = Extract<
 
 export type SystemAgentThreadStatus = 'running' | 'suspended' | 'idle';
 
-/**
- * Transcript source of a system-agent turn. It is a Preview source, so the
- * queue's Preview access rules accept the session.
- */
-const SYSTEM_AGENT_SOURCE = 'chat';
-
 function combineSignals(signal: AbortSignal, extra: AbortSignal | undefined): AbortSignal {
 	return extra ? AbortSignal.any([signal, extra]) : signal;
 }
@@ -52,8 +47,9 @@ function combineSignals(signal: AbortSignal, extra: AbortSignal | undefined): Ab
 /**
  * Runs code-defined instance agents on the Agents runtime. A conversation is
  * a private session (`accessScope = 'user'`). Its `projectId` is the working
- * project. The queue, steering, checkpoints, cancel and recording are the same
- * as for Preview chat.
+ * project. The queue, steering, checkpoints, cancel and recording are shared
+ * with project-agent chats, but the conversation has its own `system` chat
+ * surface: its own memory resource scope, transcript source and access rule.
  *
  * Every entry point that starts or continues a turn checks the runtime floor:
  * the user owns the thread, can read its working project, and passes the
@@ -83,7 +79,7 @@ export class SystemAgentExecutionService {
 	}
 
 	resourceIdFor(user: Pick<User, 'id'>): string {
-		return draftChatMemoryResourceId(user.id);
+		return systemChatMemoryResourceId(user.id);
 	}
 
 	getProvider(agentId: string): SystemAgentProvider {
@@ -261,7 +257,7 @@ export class SystemAgentExecutionService {
 			projectId: thread.projectId,
 			threadId: thread.id,
 			sessionMode: 'existing',
-			source: SYSTEM_AGENT_SOURCE,
+			source: SYSTEM_CHAT_SOURCE,
 			payload: {
 				kind: 'system',
 				userId: params.user.id,
@@ -408,7 +404,7 @@ export class SystemAgentExecutionService {
 			access: { accessScope: 'user', ownerId: params.user.id },
 			userMessage: null,
 			sessionMode: 'existing',
-			source: SYSTEM_AGENT_SOURCE,
+			source: SYSTEM_CHAT_SOURCE,
 		};
 		const abortSignal = combineSignals(controller.signal, handle.runOptions?.abortSignal);
 		const done = this.runTurn(
@@ -480,7 +476,7 @@ export class SystemAgentExecutionService {
 			projectId: thread.projectId,
 			threadId: thread.id,
 			sessionMode: 'existing',
-			source: SYSTEM_AGENT_SOURCE,
+			source: SYSTEM_CHAT_SOURCE,
 			payload: {
 				kind: 'system',
 				userId: params.user.id,
@@ -531,7 +527,7 @@ export class SystemAgentExecutionService {
 			threadId: thread.id,
 			executionId: latest.id,
 			userId: user.id,
-			surface: 'preview',
+			surface: 'system',
 		});
 	}
 
@@ -554,7 +550,7 @@ export class SystemAgentExecutionService {
 				toolRegistry: handle.toolRegistry ?? new Map(),
 				mcpServerAttributions: new Map(),
 				context: { projectId: thread.projectId, agentId: provider.agentId, threadId: thread.id },
-				chatSurface: 'preview',
+				chatSurface: 'system',
 				onExecutionStarted: (id) => {
 					executionId = id;
 				},

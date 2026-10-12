@@ -28,6 +28,7 @@ function setup() {
 	const attachments = mock<AgentChatAttachmentService>();
 	const checkpointStorage = mock<N8NCheckpointStorage>();
 	systemAgents.getUsableThread.mockResolvedValue(thread);
+	systemAgents.resourceIdFor.mockImplementation(({ id }) => `system-chat:${id}`);
 	systemAgents.getThread.mockResolvedValue(thread);
 	const controller = new SystemAgentChatController(
 		systemAgents,
@@ -137,7 +138,7 @@ describe('SystemAgentChatController', () => {
 			threadId: 'thread-1',
 			executionId: 'exec-1',
 			userId: 'user-1',
-			surface: 'preview',
+			surface: 'system',
 		});
 	});
 
@@ -145,7 +146,7 @@ describe('SystemAgentChatController', () => {
 		it('refuses an attachment of another user', async () => {
 			const { controller, attachments, chatRelay } = setup();
 			attachments.getForSystemAgent.mockResolvedValue(
-				mock<AgentChatAttachment>({ threadId: 'thread-1', resourceId: 'draft-chat:user-2' }),
+				mock<AgentChatAttachment>({ threadId: 'thread-1', resourceId: 'system-chat:user-2' }),
 			);
 
 			await expect(
@@ -161,7 +162,7 @@ describe('SystemAgentChatController', () => {
 			const { controller, attachments, chatRelay, systemAgents } = setup();
 			const attachment = mock<AgentChatAttachment>({
 				threadId: 'thread-1',
-				resourceId: 'draft-chat:user-1',
+				resourceId: 'system-chat:user-1',
 			});
 			attachments.getForSystemAgent.mockResolvedValue(attachment);
 
@@ -244,7 +245,7 @@ describe('SystemAgentChatController', () => {
 		expect(orchestrator.cancelChatRun).toHaveBeenCalledWith({
 			agentId: AGENT_ID,
 			runId: 'run-1',
-			resourceId: 'draft-chat:user-1',
+			resourceId: 'system-chat:user-1',
 		});
 		expect(result).toEqual({ cancelled: true });
 	});

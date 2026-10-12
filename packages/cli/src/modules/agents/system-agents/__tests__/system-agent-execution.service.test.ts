@@ -43,7 +43,7 @@ const thread = {
 } as AgentExecutionThread;
 
 /** The checkpoint of a turn that waits for the answer to one tool call. */
-function suspendedCheckpoint(resourceId = 'draft-chat:user-1') {
+function suspendedCheckpoint(resourceId = 'system-chat:user-1') {
 	return {
 		runId: 'run-1',
 		pendingToolCalls: {
@@ -155,7 +155,7 @@ function claimFor(options: Record<string, unknown> = {}): ClaimedAgentMessage {
 		payload: {
 			kind: 'system',
 			message: 'Build me a workflow',
-			resourceId: 'draft-chat:user-1',
+			resourceId: 'system-chat:user-1',
 			options,
 		},
 		admission: { executionId: 'exec-1', startedAt: new Date(), inputMessageIds: ['m-1'] },
@@ -189,12 +189,12 @@ describe('SystemAgentExecutionService', () => {
 				projectId: 'project-1',
 				threadId: 'thread-1',
 				sessionMode: 'existing',
-				source: 'chat',
+				source: 'system_chat',
 				payload: {
 					kind: 'system',
 					userId: 'user-1',
 					message: 'hello',
-					resourceId: 'draft-chat:user-1',
+					resourceId: 'system-chat:user-1',
 					options: { runId: 'run-1', timeZone: 'Europe/Helsinki' },
 					hidden: true,
 				},
@@ -234,7 +234,7 @@ describe('SystemAgentExecutionService', () => {
 					type: 'start',
 					user,
 					thread,
-					resourceId: 'draft-chat:user-1',
+					resourceId: 'system-chat:user-1',
 					executionId: 'exec-1',
 					message: 'Build me a workflow',
 					attachments: [],
@@ -254,7 +254,7 @@ describe('SystemAgentExecutionService', () => {
 				options: {
 					persistence: {
 						threadId: 'thread-1',
-						resourceId: 'draft-chat:user-1',
+						resourceId: 'system-chat:user-1',
 						hostMetadata: { turnOptions: { runId: 'host-run-1' } },
 					},
 				},
@@ -369,7 +369,7 @@ describe('SystemAgentExecutionService', () => {
 				expect.objectContaining({
 					type: 'resume',
 					thread,
-					resourceId: 'draft-chat:user-1',
+					resourceId: 'system-chat:user-1',
 					runId: 'run-1',
 					toolCallId: 'tc-1',
 					checkpointHostMetadata: { turnOptions: { runId: 'host-run-1' } },
@@ -396,7 +396,7 @@ describe('SystemAgentExecutionService', () => {
 		it('refuses a checkpoint stored for another memory resource', async () => {
 			const { service, provider, checkpointStorage } = setup();
 			checkpointStorage.findSuspendedForThread.mockResolvedValue(
-				suspendedCheckpoint('draft-chat:user-2') as never,
+				suspendedCheckpoint('system-chat:user-2') as never,
 			);
 
 			await expect(
@@ -622,7 +622,7 @@ describe('SystemAgentExecutionService', () => {
 			claim.payload = {
 				kind: 'system',
 				message: 'Build me a workflow',
-				resourceId: 'draft-chat:user-1',
+				resourceId: 'system-chat:user-1',
 				options: { followUp: true },
 				hidden: true,
 			};
@@ -683,7 +683,7 @@ describe('SystemAgentExecutionService', () => {
 				threadId: 'thread-1',
 				executionId: 'exec-2',
 				userId: 'user-1',
-				surface: 'preview',
+				surface: 'system',
 			});
 		});
 

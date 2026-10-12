@@ -20,7 +20,6 @@ import { AgentExecutionOrchestratorService } from '../agent-execution-orchestrat
 import { AgentMessageQueueService } from '../agent-message-queue.service';
 import type { FlushableResponse } from '../agent-sse-stream';
 import { N8NCheckpointStorage } from '../integrations/n8n-checkpoint-storage';
-import { draftChatMemoryResourceId } from '../utils/agent-memory-scope';
 import { withOpenSuspensions } from '../utils/messages-envelope';
 import { SystemAgentExecutionService } from './system-agent-execution.service';
 
@@ -77,7 +76,7 @@ export class SystemAgentChatController {
 							agentId,
 							projectId,
 							threadId,
-							resourceId: draftChatMemoryResourceId(req.user.id),
+							resourceId: this.systemAgents.resourceIdFor(req.user),
 						}),
 				}),
 		);
@@ -127,7 +126,7 @@ export class SystemAgentChatController {
 			threadId: thread.id,
 			executionId,
 			userId: req.user.id,
-			surface: 'preview',
+			surface: 'system',
 		});
 		return { cancelRequested };
 	}
@@ -144,7 +143,7 @@ export class SystemAgentChatController {
 		const cancelled = await this.orchestrator.cancelChatRun({
 			agentId,
 			runId,
-			resourceId: draftChatMemoryResourceId(req.user.id),
+			resourceId: this.systemAgents.resourceIdFor(req.user),
 		});
 		return { cancelled };
 	}
@@ -163,7 +162,7 @@ export class SystemAgentChatController {
 		});
 		const checkpoint = await this.checkpointStorage.findSuspendedForThread(agentId, thread.id);
 		const ownCheckpoint =
-			checkpoint?.persistence?.resourceId === draftChatMemoryResourceId(req.user.id)
+			checkpoint?.persistence?.resourceId === this.systemAgents.resourceIdFor(req.user)
 				? checkpoint
 				: null;
 		if (!history) {
@@ -185,7 +184,7 @@ export class SystemAgentChatController {
 		const { agentId, attachmentId } = req.params;
 		this.systemAgents.assertRegistered(agentId);
 		const attachment = await this.attachments.getForSystemAgent(attachmentId, agentId);
-		if (attachment?.resourceId !== draftChatMemoryResourceId(req.user.id)) {
+		if (attachment?.resourceId !== this.systemAgents.resourceIdFor(req.user)) {
 			throw new NotFoundError(`Attachment "${attachmentId}" not found`);
 		}
 		await this.systemAgents.getUsableThread(agentId, req.user, attachment.threadId);
