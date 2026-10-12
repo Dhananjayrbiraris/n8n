@@ -171,10 +171,10 @@ const scope = (input: {
 const request = mock<ResolvedImportPackageRequest>({
 	user: mock(),
 	conflictPolicy: 'new-version',
-	workflowIdPolicy: 'new',
+	idPolicy: 'new',
 	credentialMatchingMode: 'id-only',
 	credentialMissingMode: 'create-stub',
-	workflowPublishingPolicy: 'preserve-published-state',
+	publishingPolicy: 'preserve-published-state',
 	folderConflictPolicy: 'overwrite',
 	variableMissingMode: 'create-stub',
 	variableConflictPolicy: 'overwrite',
@@ -271,6 +271,12 @@ describe('emitPackageImportedEvent', () => {
 		// Skipped workflows are excluded; only wf1 and wf3 were actually written.
 		expect(payload.workflowIds).toEqual(['wf1', 'wf3']);
 		expect(payload.agentIds).toEqual(['agent1', 'agent3']);
+		expect(payload.options).toMatchObject({
+			workflowIdPolicy: 'new',
+			agentIdPolicy: 'new',
+			workflowPublishingPolicy: 'preserve-published-state',
+			agentPublishingPolicy: 'preserve-published-state',
+		});
 		// A multi-scope import has no single folder to attribute the event to.
 		expect(payload.folderId).toBeNull();
 		// Credential ids are resolved through each scope's binding map (source id -> target id).

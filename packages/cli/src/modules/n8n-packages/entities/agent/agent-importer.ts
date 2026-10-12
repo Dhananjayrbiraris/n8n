@@ -24,7 +24,7 @@ import {
 	type PreparedAgent,
 	type PersistedAgentOutcome,
 } from './agent-import.types';
-import type { ImportAgentProperties, ImportConflictProperties } from '../../n8n-packages.types';
+import type { ImportEntityProperties } from '../../n8n-packages.types';
 import { decideImportConflictAction } from '../import-conflict-policy';
 import { derivePublishedState } from '../workflow/workflow-published-state';
 import { decidePublishingAction } from '../workflow/workflow-publishing-policy';
@@ -105,7 +105,7 @@ export class AgentImporter {
 	async plan(
 		context: AgentImportMatchContext,
 		agents: PreparedAgent[],
-		options: ImportAgentProperties & ImportConflictProperties,
+		options: ImportEntityProperties,
 	): Promise<AgentImportPlan> {
 		const plan: AgentImportPlan = {
 			items: [],
@@ -117,7 +117,7 @@ export class AgentImporter {
 			context,
 			agents.map((a) => a.sourceAgentId),
 		);
-		const identities = await this.matcher.allocateAgentIds(matches, options.agentIdPolicy);
+		const identities = await this.matcher.allocateAgentIds(matches, options.idPolicy);
 		for (const conflict of identities.lineageConflicts) {
 			plan.issues.push({
 				type: 'agent-conflict',
@@ -151,7 +151,7 @@ export class AgentImporter {
 		agent: PreparedAgent,
 		identity: ResolvedAgentImportIdentity,
 		context: AgentImportMatchContext,
-		options: ImportAgentProperties & ImportConflictProperties,
+		options: ImportEntityProperties,
 		plan: AgentImportPlan,
 	): Promise<void> {
 		const { action, blocked } = decideImportConflictAction(
@@ -181,7 +181,7 @@ export class AgentImporter {
 			return;
 		}
 		const statuses = { create: 'created', update: 'updated', skip: 'skipped' } as const;
-		const publishingAction = decidePublishingAction(options.agentPublishingPolicy, {
+		const publishingAction = decidePublishingAction(options.publishingPolicy, {
 			status: statuses[action],
 			currentlyPublished: Boolean(existing?.activeVersionId),
 			sourcePublished: derivePublishedState(agent.metadata),

@@ -151,8 +151,8 @@ describe('variable error consumers', () => {
 			},
 			options: {
 				conflictPolicy: 'fail',
-				workflowPublishingPolicy: 'preserve-published-state',
-				workflowIdPolicy: 'new',
+				publishingPolicy: 'preserve-published-state',
+				idPolicy: 'new',
 				missingNodeTypeMode: 'fail',
 				folderConflictPolicy: 'merge',
 				overwriteDeletionPolicy: 'archive',

@@ -111,12 +111,12 @@ export function emitPackageImportedEvent(
 		options: {
 			workflowConflictPolicy: request.conflictPolicy,
 			conflictPolicy: request.conflictPolicy,
-			workflowIdPolicy: request.workflowIdPolicy,
-			agentIdPolicy: request.agentIdPolicy ?? 'source',
-			agentPublishingPolicy: request.agentPublishingPolicy ?? 'preserve-published-state',
+			workflowIdPolicy: request.idPolicy,
+			agentIdPolicy: request.idPolicy,
+			agentPublishingPolicy: request.publishingPolicy,
 			credentialMatchingMode: request.credentialMatchingMode,
 			credentialMissingMode: request.credentialMissingMode,
-			workflowPublishingPolicy: request.workflowPublishingPolicy,
+			workflowPublishingPolicy: request.publishingPolicy,
 			missingNodeTypeMode: request.missingNodeTypeMode,
 			projectConflictPolicy: request.projectConflictPolicy,
 			// Settled by the dispatcher before any importer runs, so analytics see what the import
