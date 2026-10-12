@@ -268,13 +268,13 @@ describe('workflow package import — with data tables', () => {
 				user: owner,
 				projectId: project.id,
 				packageBuffer,
-				workflowConflictPolicy: 'new-version',
+				conflictPolicy: 'new-version',
 			});
 			await importPackage({
 				user: owner,
 				projectId: project.id,
 				packageBuffer,
-				workflowConflictPolicy: 'new-version',
+				conflictPolicy: 'new-version',
 			});
 
 			expect(await tablesInProject(project.id)).toHaveLength(1);

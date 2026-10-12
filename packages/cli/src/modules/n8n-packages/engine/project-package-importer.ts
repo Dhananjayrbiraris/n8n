@@ -220,6 +220,7 @@ export class ProjectPackageImporter {
 
 		const result = buildImportResult({
 			package: toPackageSummary(manifest),
+			agentOutcomes,
 			workflows,
 			removedWorkflows,
 			removedFolders,

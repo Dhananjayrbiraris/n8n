@@ -67,8 +67,12 @@ describe('LogStreamingEventRelay', () => {
 				projectIds: ['proj-brie', 'proj-stilton'],
 				folderId: 'folder-cheese',
 				workflowIds: ['wf-cheddar', 'wf-brie'],
+				agentIds: ['agent1', 'agent2'],
 				options: {
 					workflowConflictPolicy: 'new-version',
+					conflictPolicy: 'new-version',
+					agentIdPolicy: 'source',
+					agentPublishingPolicy: 'match-source',
 					workflowIdPolicy: 'new',
 					credentialMatchingMode: 'id-only',
 					credentialMissingMode: 'must-preexist',
@@ -95,6 +99,7 @@ describe('LogStreamingEventRelay', () => {
 				},
 				// Telemetry-only; must not appear in the audit payload below.
 				counts: {
+					agents: { created: 1, updated: 1, skipped: 1 },
 					workflows: {
 						created: 1,
 						updated: 1,
@@ -148,8 +153,12 @@ describe('LogStreamingEventRelay', () => {
 					projectIds: ['proj-brie', 'proj-stilton'],
 					folderId: 'folder-cheese',
 					workflowIds: ['wf-cheddar', 'wf-brie'],
+					agentIds: ['agent1', 'agent2'],
 					options: {
 						workflowConflictPolicy: 'new-version',
+						conflictPolicy: 'new-version',
+						agentIdPolicy: 'source',
+						agentPublishingPolicy: 'match-source',
 						workflowIdPolicy: 'new',
 						credentialMatchingMode: 'id-only',
 						credentialMissingMode: 'must-preexist',

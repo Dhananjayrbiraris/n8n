@@ -5,7 +5,6 @@ import type { CredentialBindingRequest } from '../entities/credential/credential
 import type { DataTableImportRequest } from '../entities/data-table/data-table.types';
 import type { TagImportPlan, TagImportRequest } from '../entities/tag/tag.types';
 import type { VariableImportRequest } from '../entities/variable/variable.types';
-import type { PersistedWorkflowOutcome } from '../entities/workflow/workflow-import.types';
 import { VariableParentPolicy } from '../n8n-packages.types';
 import type {
 	ImportContext,
@@ -13,7 +12,7 @@ import type {
 	ImportResult,
 } from '../n8n-packages.types';
 import type { ImportContentResult } from './import-orchestrator';
-import { reconcileVariableSummary } from './import-result';
+import { countImportStatuses, reconcileVariableSummary } from './import-result';
 import type { PackageManifest } from '../spec/manifest.schema';
 
 export interface PackageImportScope {
@@ -43,11 +42,10 @@ export function emitPackageImportedEvent(
 	const { request, manifest, scopes } = params;
 
 	const workflowOutcomes = scopes.flatMap(({ imported }) => imported.workflowOutcomes);
+	const agentOutcomes = scopes.flatMap(({ imported }) => imported.agentOutcomes);
 	const removedWorkflows = scopes.flatMap(({ imported }) => imported.removedWorkflows);
 	const credentialResults = scopes.map(({ imported }) => imported.credentialResult);
 	const importedWorkflows = workflowOutcomes.filter(({ status }) => status !== 'skipped');
-	const countByStatus = (status: PersistedWorkflowOutcome['status']) =>
-		workflowOutcomes.filter((outcome) => outcome.status === status).length;
 	const credentialRequirements = scopes.reduce(
 		(total, { credentialRequest }) => total + (credentialRequest.requirements?.length ?? 0),
 		0,
@@ -107,9 +105,15 @@ export function emitPackageImportedEvent(
 		projectIds: scopes.map(({ context }) => context.projectId),
 		folderId,
 		workflowIds: importedWorkflows.map(({ workflow }) => workflow.id),
+		agentIds: agentOutcomes
+			.filter(({ status }) => status !== 'skipped')
+			.map(({ agent }) => agent.id),
 		options: {
-			workflowConflictPolicy: request.workflowConflictPolicy,
+			workflowConflictPolicy: request.conflictPolicy,
+			conflictPolicy: request.conflictPolicy,
 			workflowIdPolicy: request.workflowIdPolicy,
+			agentIdPolicy: request.agentIdPolicy ?? 'source',
+			agentPublishingPolicy: request.agentPublishingPolicy ?? 'preserve-published-state',
 			credentialMatchingMode: request.credentialMatchingMode,
 			credentialMissingMode: request.credentialMissingMode,
 			workflowPublishingPolicy: request.workflowPublishingPolicy,
@@ -137,10 +141,9 @@ export function emitPackageImportedEvent(
 			updated: [],
 		},
 		counts: {
+			agents: countImportStatuses(agentOutcomes),
 			workflows: {
-				created: countByStatus('created'),
-				updated: countByStatus('updated'),
-				skipped: countByStatus('skipped'),
+				...countImportStatuses(workflowOutcomes),
 				// Reconciliation removals, split by what actually happened — a `hard-delete` whose
 				// row could not be dropped yet counts as archived, like the API response reports it.
 				archived: removedWorkflows.filter(({ deletion }) => deletion === 'archived').length,

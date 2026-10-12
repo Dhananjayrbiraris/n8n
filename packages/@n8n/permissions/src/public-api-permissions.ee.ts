@@ -8,6 +8,12 @@ import {
 
 export const OWNER_API_KEY_SCOPES: ApiKeyScope[] = [
 	'agent:export',
+	'agent:import',
+	'agent:read',
+	'agent:create',
+	'agent:update',
+	'agent:publish',
+	'agent:unpublish',
 	'user:read',
 	'user:list',
 	'user:create',
@@ -116,6 +122,12 @@ export const ADMIN_API_KEY_SCOPES: ApiKeyScope[] = OWNER_API_KEY_SCOPES;
 
 export const MEMBER_API_KEY_SCOPES: ApiKeyScope[] = [
 	'agent:export',
+	'agent:import',
+	'agent:read',
+	'agent:create',
+	'agent:update',
+	'agent:publish',
+	'agent:unpublish',
 	'tag:create',
 	'tag:read',
 	'tag:update',
@@ -185,6 +197,12 @@ export const CHAT_USER_API_KEY_SCOPES: ApiKeyScope[] = [];
  */
 export const API_KEY_SCOPES_FOR_IMPLICIT_PERSONAL_PROJECT: ApiKeyScope[] = [
 	'agent:export',
+	'agent:import',
+	'agent:read',
+	'agent:create',
+	'agent:update',
+	'agent:publish',
+	'agent:unpublish',
 	'workflowTags:update',
 	'workflowTags:list',
 	'executionTags:update',

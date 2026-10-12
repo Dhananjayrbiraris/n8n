@@ -38,7 +38,7 @@ import { TarPackageWriter } from '../io/tar/tar-package-writer';
 import { N8nPackagesService } from '../n8n-packages.service';
 import { importPackageRequest } from './fixtures/import-request';
 import {
-	WorkflowConflictPolicy,
+	ImportConflictPolicy,
 	WorkflowIdPolicy,
 	WorkflowPublishingPolicy,
 	type ImportPackageRequest,
@@ -290,7 +290,7 @@ describe('Package import routing matrix', () => {
 				packageBuffer: await buildImportPackageBuffer([
 					serializedWorkflow({ id: 'wf-root', name: 'Folder Workflow' }),
 				]),
-				workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+				conflictPolicy: ImportConflictPolicy.NewVersion,
 				workflowIdPolicy: WorkflowIdPolicy.Source,
 			}),
 		).rejects.toMatchObject({
@@ -446,7 +446,7 @@ describe('Package import workflowIdPolicy: new', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: 'STILTON', name: 'Cheese v2' }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowIdPolicy: WorkflowIdPolicy.New,
 		});
 
@@ -494,7 +494,7 @@ describe('Package import workflowIdPolicy: source', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: 'STILTON', name: 'Stilton v2' }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowIdPolicy: WorkflowIdPolicy.Source,
 		});
 
@@ -526,7 +526,7 @@ describe('Package import workflowIdPolicy: source', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: 'STILTON', name: 'Stilton v2' }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowIdPolicy: WorkflowIdPolicy.Source,
 		});
 
@@ -560,7 +560,7 @@ describe('Package import workflowIdPolicy: source', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: 'STILTON', name: 'Stilton v2' }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowIdPolicy: WorkflowIdPolicy.Source,
 		});
 
@@ -650,7 +650,7 @@ describe('Package import workflowIdPolicy: source', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: 'STILTON', name: 'Stilton v2' }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowIdPolicy: WorkflowIdPolicy.Source,
 		});
 
@@ -683,7 +683,7 @@ describe('Package import workflowIdPolicy: source', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: 'STILTON', name: 'Stilton v2', isArchived: true }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowIdPolicy: WorkflowIdPolicy.Source,
 		});
 
@@ -714,7 +714,7 @@ describe('Package import workflowIdPolicy: source', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: 'STILTON', name: 'Stilton v2', isArchived: true }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowIdPolicy: WorkflowIdPolicy.Source,
 		});
 
@@ -785,7 +785,7 @@ describe('Package import workflowIdPolicy: source', () => {
 				packageBuffer: await buildImportPackageBuffer([
 					serializedWorkflow({ id: 'STILTON', name: 'Stilton again' }),
 				]),
-				workflowConflictPolicy: WorkflowConflictPolicy.Fail,
+				conflictPolicy: ImportConflictPolicy.Fail,
 				workflowIdPolicy: WorkflowIdPolicy.Source,
 			}),
 		).rejects.toMatchObject({
@@ -803,9 +803,9 @@ describe('Package import workflowIdPolicy: source', () => {
 });
 
 describe('Package import workflow conflict policy', () => {
-	it.each<WorkflowConflictPolicy>([WorkflowConflictPolicy.NewVersion, WorkflowConflictPolicy.Skip])(
+	it.each<ImportConflictPolicy>([ImportConflictPolicy.NewVersion, ImportConflictPolicy.Skip])(
 		'%s handles matched and fresh workflows in one package',
-		async (workflowConflictPolicy) => {
+		async (conflictPolicy) => {
 			const owner = await createOwner();
 			const personalProject = await Container.get(
 				ProjectRepository,
@@ -843,7 +843,7 @@ describe('Package import workflow conflict policy', () => {
 					}),
 					serializedWorkflow({ id: 'wf-fresh', name: 'Fresh workflow' }),
 				]),
-				workflowConflictPolicy,
+				conflictPolicy,
 			});
 
 			const matchedSummary = result.workflows.find(
@@ -855,8 +855,7 @@ describe('Package import workflow conflict policy', () => {
 
 			expect(matchedSummary).toMatchObject({
 				localId: existing.id,
-				status:
-					workflowConflictPolicy === WorkflowConflictPolicy.NewVersion ? 'updated' : 'skipped',
+				status: conflictPolicy === ImportConflictPolicy.NewVersion ? 'updated' : 'skipped',
 				parentFolderId: folder.id,
 			});
 			expect(freshSummary).toMatchObject({
@@ -873,7 +872,7 @@ describe('Package import workflow conflict policy', () => {
 				relations: ['parentFolder'],
 			});
 			expect(storedExisting.name).toBe(
-				workflowConflictPolicy === WorkflowConflictPolicy.NewVersion
+				conflictPolicy === ImportConflictPolicy.NewVersion
 					? 'Imported replacement'
 					: 'Existing workflow',
 			);
@@ -920,7 +919,7 @@ describe('Package import workflow conflict policy', () => {
 					],
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 		});
 
 		const summary = result.workflows.find(
@@ -967,7 +966,7 @@ describe('Package import workflow conflict policy', () => {
 					serializedWorkflow({ id: 'wf-existing', name: 'Conflicting workflow' }),
 					serializedWorkflow({ id: 'wf-fresh', name: 'Fresh workflow' }),
 				]),
-				workflowConflictPolicy: WorkflowConflictPolicy.Fail,
+				conflictPolicy: ImportConflictPolicy.Fail,
 			}),
 		).rejects.toMatchObject({
 			message: expect.stringContaining('Import blocked'),
@@ -1000,7 +999,7 @@ describe('Package import workflow conflict policy', () => {
 				packageBuffer: await buildImportPackageBuffer([
 					serializedWorkflow({ id: 'wf-ambiguous', name: 'Incoming' }),
 				]),
-				workflowConflictPolicy: WorkflowConflictPolicy.Skip,
+				conflictPolicy: ImportConflictPolicy.Skip,
 			}),
 		).rejects.toMatchObject({
 			message: expect.stringContaining('Import blocked'),
@@ -1034,7 +1033,7 @@ describe('Package import workflow conflict policy', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: 'wf-legacy', name: 'Updated active match' }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 		});
 
 		expect(result.workflows[0]).toMatchObject({ localId: active.id, status: 'updated' });
@@ -1058,7 +1057,7 @@ describe('Package import workflow conflict policy', () => {
 			packageBuffer: await buildImportPackageBuffer([
 				serializedWorkflow({ id: original.id, name: 'Updated via re-import' }),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 		});
 
 		expect(result.workflows).toEqual([
@@ -1258,7 +1257,7 @@ describe('Package import event emission', () => {
 				updated: [],
 			});
 			expect(importedPayload.folderId).toBeNull();
-			expect(importedPayload.options.workflowConflictPolicy).toBe(WorkflowConflictPolicy.Fail);
+			expect(importedPayload.options.workflowConflictPolicy).toBe(ImportConflictPolicy.Fail);
 			expect(importedPayload.options.workflowIdPolicy).toBe(WorkflowIdPolicy.New);
 			expect(importedPayload.options.credentialMatchingMode).toBe('id-only');
 			expect(importedPayload.options.credentialMissingMode).toBe('must-preexist');
@@ -1271,6 +1270,7 @@ describe('Package import event emission', () => {
 			expect(importedPayload.packageSourceId).toBeDefined();
 			expect(importedPayload.packageVersion).toBe(FORMAT_VERSION);
 			expect(importedPayload.counts).toEqual({
+				agents: { created: 0, updated: 0, skipped: 0 },
 				workflows: {
 					created: 2,
 					updated: 0,
@@ -1371,6 +1371,7 @@ describe('Package import event emission', () => {
 			expect(importedPayload.credentialIds.created[0]).toBe('missing-cred');
 			expect(importedPayload.credentialIds.updated).toEqual([]);
 			expect(importedPayload.counts).toEqual({
+				agents: { created: 0, updated: 0, skipped: 0 },
 				workflows: {
 					created: 3,
 					updated: 0,
@@ -1430,7 +1431,7 @@ describe('Package import event emission', () => {
 					serializedWorkflow({ id: 'wf-existing-skip', name: 'Skipped duplicate' }),
 					serializedWorkflow({ id: 'wf-new-only', name: 'Fresh workflow' }),
 				]),
-				workflowConflictPolicy: WorkflowConflictPolicy.Skip,
+				conflictPolicy: ImportConflictPolicy.Skip,
 			});
 
 			const importedEvents = emitSpy.mock.calls.filter(([name]) => name === 'n8n-package-imported');
@@ -1441,6 +1442,7 @@ describe('Package import event emission', () => {
 			expect(workflowIds).toEqual([createdWorkflow!.localId]);
 			expect(result.workflows.find(({ status }) => status === 'skipped')).toBeDefined();
 			expect(counts).toEqual({
+				agents: { created: 0, updated: 0, skipped: 0 },
 				workflows: {
 					created: 1,
 					updated: 0,
@@ -1504,7 +1506,7 @@ describe('Package import event emission', () => {
 				packageBuffer: await buildImportPackageBuffer([
 					serializedWorkflow({ id: 'wf-update', name: 'Update me v2' }),
 				]),
-				workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+				conflictPolicy: ImportConflictPolicy.NewVersion,
 				workflowIdPolicy: WorkflowIdPolicy.Source,
 			});
 
@@ -1513,6 +1515,7 @@ describe('Package import event emission', () => {
 
 			const { counts } = importedEvents[0][1] as RelayEventMap['n8n-package-imported'];
 			expect(counts).toEqual({
+				agents: { created: 0, updated: 0, skipped: 0 },
 				workflows: {
 					created: 0,
 					updated: 1,
@@ -1598,7 +1601,7 @@ describe('Package import event emission', () => {
 					packageBuffer: await buildImportPackageBuffer([
 						serializedWorkflow({ id: 'wf-blocking', name: 'Conflicting workflow' }),
 					]),
-					workflowConflictPolicy: WorkflowConflictPolicy.Fail,
+					conflictPolicy: ImportConflictPolicy.Fail,
 				}),
 			).rejects.toThrow('Import blocked');
 
@@ -2340,7 +2343,7 @@ describe('credential-missing-mode: create-stub', () => {
 		const result = await importPackage({
 			user: owner,
 			credentialMissingMode: 'create-stub',
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.PreservePublishedState,
 			packageBuffer: await buildImportPackageBuffer(
 				[
@@ -2410,7 +2413,7 @@ describe('Package import workflow publishing policy', () => {
 					nodes: scheduleTriggerNodes(),
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.Fail,
+			conflictPolicy: ImportConflictPolicy.Fail,
 			workflowPublishingPolicy,
 		});
 
@@ -2438,7 +2441,7 @@ describe('Package import workflow publishing policy', () => {
 					nodes: scheduleTriggerNodes(),
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.Fail,
+			conflictPolicy: ImportConflictPolicy.Fail,
 			workflowPublishingPolicy,
 		});
 
@@ -2501,7 +2504,7 @@ describe('Package import workflow publishing policy', () => {
 					publishedVersionId: null,
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.Fail,
+			conflictPolicy: ImportConflictPolicy.Fail,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.MatchSource,
 		});
 
@@ -2536,7 +2539,7 @@ describe('Package import workflow publishing policy', () => {
 					publishedVersionId: 'live-elsewhere',
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.MatchSource,
 		});
 
@@ -2578,7 +2581,7 @@ describe('Package import workflow publishing policy', () => {
 					],
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.UnpublishAll,
 		});
 
@@ -2613,7 +2616,7 @@ describe('Package import workflow publishing policy', () => {
 		const result = await importPackage({
 			user: owner,
 			packageBuffer: await buildImportPackageBuffer([baseWorkflow]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.PreservePublishedState,
 		});
 
@@ -2652,7 +2655,7 @@ describe('Package import workflow publishing policy', () => {
 					nodes: scheduleTriggerNodes(),
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.PreservePublishedState,
 		});
 
@@ -2702,7 +2705,7 @@ describe('Package import workflow publishing policy', () => {
 					nodes: webhookNodes('wh-b', '/test'),
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.Fail,
+			conflictPolicy: ImportConflictPolicy.Fail,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.PublishAll,
 		});
 
@@ -2748,7 +2751,7 @@ describe('Package import workflow publishing policy', () => {
 					nodes: webhookNodes('wh-post', '/test', 'POST'),
 				}),
 			]),
-			workflowConflictPolicy: WorkflowConflictPolicy.Fail,
+			conflictPolicy: ImportConflictPolicy.Fail,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.PublishAll,
 		});
 
@@ -2932,7 +2935,7 @@ describe('Package import missing node type mode', () => {
 		const result = await importPackage({
 			user: owner,
 			missingNodeTypeMode: 'import-anyway',
-			workflowConflictPolicy: WorkflowConflictPolicy.NewVersion,
+			conflictPolicy: ImportConflictPolicy.NewVersion,
 			workflowPublishingPolicy: WorkflowPublishingPolicy.PreservePublishedState,
 			packageBuffer: await buildImportPackageBuffer(
 				[
@@ -2974,7 +2977,7 @@ describe('Package import missing node type mode', () => {
 
 		const result = await importPackage({
 			user: owner,
-			workflowConflictPolicy: WorkflowConflictPolicy.Skip,
+			conflictPolicy: ImportConflictPolicy.Skip,
 			packageBuffer: await buildImportPackageBuffer(
 				[
 					serializedWorkflow({
