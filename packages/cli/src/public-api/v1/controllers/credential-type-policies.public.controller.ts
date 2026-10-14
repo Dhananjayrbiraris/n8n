@@ -43,6 +43,7 @@ import type { Response } from 'express';
 import { NotFoundError, ServiceUnavailableError } from '@n8n/errors';
 import { CREDENTIAL_TYPES_KIND } from '@/modules/type-availability-policies/constants';
 import type { TypeAvailabilityPolicy } from '@/modules/type-availability-policies/database/entities/type-availability-policy.entity';
+import type { PolicyAttachment } from '@/modules/type-availability-policies/policy-rule.types';
 import {
 	encodeNextCursor,
 	resolveOffsetPagination,
@@ -59,6 +60,21 @@ function toPublicDocument(policy: TypeAvailabilityPolicy): CredentialTypePolicyD
 		updatedBy: policy.updatedBy,
 		createdAt: policy.createdAt.toISOString(),
 		updatedAt: policy.updatedAt.toISOString(),
+	};
+}
+
+function toPublicAttachments(result: {
+	attachments: readonly PolicyAttachment[];
+	version: number;
+}): CredentialTypePolicyAttachmentsPublicDto {
+	return {
+		attachments: result.attachments.map((attachment) => ({
+			policyId: attachment.policyId,
+			rules: [...attachment.rules],
+			priority: attachment.priority,
+			isFloor: attachment.isFloor,
+		})),
+		version: result.version,
 	};
 }
 
@@ -350,15 +366,7 @@ export class CredentialTypePoliciesPublicController {
 	): Promise<CredentialTypePolicyAttachmentsPublicDto> {
 		const result = await (await this.service()).getAttachments(CREDENTIAL_TYPES_KIND, scopeId);
 
-		return {
-			attachments: result.attachments.map((attachment) => ({
-				policyId: attachment.policyId,
-				rules: [...attachment.rules],
-				priority: attachment.priority,
-				isFloor: attachment.isFloor,
-			})),
-			version: result.version,
-		};
+		return toPublicAttachments(result);
 	}
 
 	@Put('/scopes/:scopeId/attachments')
@@ -388,14 +396,6 @@ export class CredentialTypePoliciesPublicController {
 			req.user.id,
 		);
 
-		return {
-			attachments: result.attachments.map((attachment) => ({
-				policyId: attachment.policyId,
-				rules: [...attachment.rules],
-				priority: attachment.priority,
-				isFloor: attachment.isFloor,
-			})),
-			version: result.version,
-		};
+		return toPublicAttachments(result);
 	}
 }

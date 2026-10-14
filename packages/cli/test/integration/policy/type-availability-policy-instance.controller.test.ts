@@ -10,7 +10,6 @@ import { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
 import { TypeAvailabilityPolicyAttachmentRepository } from '@/modules/type-availability-policies/database/repositories/type-availability-policy-attachment.repository';
 import { TypeAvailabilityPolicyScopeRepository } from '@/modules/type-availability-policies/database/repositories/type-availability-policy-scope.repository';
 import { TypeAvailabilityPolicyRepository } from '@/modules/type-availability-policies/database/repositories/type-availability-policy.repository';
-import { TypeAvailabilityPolicyService } from '@/modules/type-availability-policies/type-availability-policy.service';
 import { createMember, createOwner } from '@test-integration/db/users';
 import * as utils from '@test-integration/utils';
 
@@ -147,12 +146,9 @@ describe('node type availability policy instance controller license gating', () 
 });
 
 describe('node type availability policy instance controller admin happy path', () => {
-	test.each([
-		['node-types', 'node-type-policies'],
-		['credential-types', 'credential-type-policies'],
-	])(
-		'GET attachments returns the committed version after a concurrent %s write',
-		async (kind, route) => {
+	test.each(['node-type-policies', 'credential-type-policies'])(
+		'PUT rejects a stale attachment read after a concurrent %s write',
+		async (route) => {
 			const agent = testServer.authAgentFor(owner);
 			const configured = await agent.put(`/${route}/instance`).send({
 				rules: [],
@@ -161,31 +157,34 @@ describe('node type availability policy instance controller admin happy path', (
 			});
 			expect(configured.statusCode).toBe(200);
 			const { scopeId, version } = configured.body.data;
+			const path = `/${route}/scopes/${scopeId}/attachments`;
 			const repository = Container.get(TypeAvailabilityPolicyScopeRepository);
 			const findScope = repository.findScopeByIdAndKind.bind(repository);
 			const findSpy = vi
 				.spyOn(repository, 'findScopeByIdAndKind')
-				.mockImplementationOnce(async (id, requestedKind, ctx) => {
-					const scope = await findScope(id, requestedKind, ctx);
-					await Container.get(TypeAvailabilityPolicyService).replaceAttachments(
-						kind,
-						scopeId,
-						[],
-						version,
-						owner.id,
-					);
+				.mockImplementationOnce(async (id, kind, ctx) => {
+					const scope = await findScope(id, kind, ctx);
+					const concurrent = await agent.put(path).send({ attachments: [], version });
+					expect(concurrent.statusCode).toBe(200);
 					return scope;
 				});
 
 			try {
-				const path = `/${route}/scopes/${scopeId}/attachments`;
 				const read = await agent.get(path);
-
 				expect(read.statusCode).toBe(200);
-				expect(read.body.data).toEqual({ attachments: [], version: version + 1 });
-				const updated = await agent
+				expect(read.body.data).toEqual({ attachments: [], version });
+
+				const stale = await agent
 					.put(path)
 					.send({ attachments: [], version: read.body.data.version });
+				expect(stale.statusCode).toBe(409);
+
+				const current = await agent.get(path);
+				expect(current.statusCode).toBe(200);
+				expect(current.body.data).toEqual({ attachments: [], version: version + 1 });
+				const updated = await agent
+					.put(path)
+					.send({ attachments: [], version: current.body.data.version });
 				expect(updated.statusCode).toBe(200);
 			} finally {
 				findSpy.mockRestore();

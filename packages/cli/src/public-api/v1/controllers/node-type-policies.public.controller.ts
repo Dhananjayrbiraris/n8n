@@ -47,6 +47,7 @@ import { UnexpectedError } from 'n8n-workflow';
 import { NotFoundError, ServiceUnavailableError } from '@n8n/errors';
 import { NODE_TYPES_KIND } from '@/modules/type-availability-policies/constants';
 import type { TypeAvailabilityPolicy } from '@/modules/type-availability-policies/database/entities/type-availability-policy.entity';
+import type { PolicyAttachment } from '@/modules/type-availability-policies/policy-rule.types';
 import {
 	encodeNextCursor,
 	resolveOffsetPagination,
@@ -71,6 +72,21 @@ function toPublicDocument(policy: TypeAvailabilityPolicy): PolicyDocumentPublicD
 		updatedBy: policy.updatedBy,
 		createdAt: policy.createdAt.toISOString(),
 		updatedAt: policy.updatedAt.toISOString(),
+	};
+}
+
+function toPublicAttachments(result: {
+	attachments: readonly PolicyAttachment[];
+	version: number;
+}): PolicyAttachmentsPublicDto {
+	return {
+		attachments: result.attachments.map((attachment) => ({
+			policyId: attachment.policyId,
+			rules: toNodeTypeRules(attachment.rules),
+			priority: attachment.priority,
+			isFloor: attachment.isFloor,
+		})),
+		version: result.version,
 	};
 }
 
@@ -359,15 +375,7 @@ export class NodeTypePoliciesPublicController {
 	): Promise<PolicyAttachmentsPublicDto> {
 		const result = await (await this.service()).getAttachments(NODE_TYPES_KIND, scopeId);
 
-		return {
-			attachments: result.attachments.map((attachment) => ({
-				policyId: attachment.policyId,
-				rules: toNodeTypeRules(attachment.rules),
-				priority: attachment.priority,
-				isFloor: attachment.isFloor,
-			})),
-			version: result.version,
-		};
+		return toPublicAttachments(result);
 	}
 
 	@Put('/scopes/:scopeId/attachments')
@@ -397,14 +405,6 @@ export class NodeTypePoliciesPublicController {
 			req.user.id,
 		);
 
-		return {
-			attachments: result.attachments.map((attachment) => ({
-				policyId: attachment.policyId,
-				rules: toNodeTypeRules(attachment.rules),
-				priority: attachment.priority,
-				isFloor: attachment.isFloor,
-			})),
-			version: result.version,
-		};
+		return toPublicAttachments(result);
 	}
 }
