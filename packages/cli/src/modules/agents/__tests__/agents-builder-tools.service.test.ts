@@ -46,7 +46,7 @@ import type { AgentsService } from '../agents.service';
 import { AgentsBuilderToolsService } from '../builder/agents-builder-tools.service';
 import type { BuilderModelLiveLookupService } from '../builder/builder-model-live-lookup.service';
 import { BUILDER_TOOLS } from '../builder/builder-tool-names';
-import type { Agent } from '../entities/agent.entity';
+import type { Agent, ProjectAgent } from '../entities/agent.entity';
 import type { AgentSecureRuntime } from '../runtime/agent-secure-runtime';
 import { getAgentConfigHash } from '../utils/agent-config-hash';
 import * as checkAccess from '@/permissions.ee/check-access';
@@ -240,7 +240,7 @@ function makeLinearToolWithParameters(
 	};
 }
 
-function makeAgent(config: AgentJsonConfig = baseConfig): Agent {
+function makeAgent(config: AgentJsonConfig = baseConfig): ProjectAgent {
 	return {
 		schema: config,
 		integrations: [],
@@ -248,7 +248,7 @@ function makeAgent(config: AgentJsonConfig = baseConfig): Agent {
 		versionId: 'v1',
 		tools: {},
 		skills: {},
-	} as unknown as Agent;
+	} as unknown as ProjectAgent;
 }
 
 function makeTaskDto(overrides: Partial<AgentTaskDto> = {}): AgentTaskDto {
@@ -614,7 +614,10 @@ describe('AgentsBuilderToolsService', () => {
 				credentialId: 'telegram-cred',
 				settings: { accessMode: 'private', allowedUsers: ['@someone'] },
 			};
-			const agent = { ...makeAgent(baseConfig), integrations: [telegram] } as unknown as Agent;
+			const agent = {
+				...makeAgent(baseConfig),
+				integrations: [telegram],
+			} as unknown as ProjectAgent;
 			const currentConfig = { ...baseConfig, integrations: [telegram] };
 			agentsService.findById.mockResolvedValue(agent);
 			agentsService.updateConfig.mockResolvedValue({
@@ -2767,7 +2770,7 @@ describe('AgentsBuilderToolsService', () => {
 				agent: {
 					activeVersionId: 'v-active',
 					versionId: 'v-active',
-				} as Agent,
+				} as ProjectAgent,
 			});
 
 			const result = await getPublishTool(service).handler!({}, ctx);
@@ -2798,7 +2801,7 @@ describe('AgentsBuilderToolsService', () => {
 				agent: {
 					activeVersionId: 'v-history',
 					versionId: 'v-draft',
-				} as Agent,
+				} as ProjectAgent,
 			});
 
 			const result = await getPublishTool(service).handler!({ versionId: 'v-history' }, ctx);
@@ -2825,7 +2828,7 @@ describe('AgentsBuilderToolsService', () => {
 			const publishedAgent = {
 				activeVersionId: 'v-active',
 				versionId: 'v-active',
-			} as Agent;
+			} as ProjectAgent;
 			agentsService.findById.mockResolvedValue(publishedAgent);
 			agentPublishService.publishAgent.mockResolvedValue({ agent: publishedAgent });
 
@@ -2887,7 +2890,7 @@ describe('AgentsBuilderToolsService', () => {
 			vi.spyOn(checkAccess, 'userHasScopes').mockResolvedValue(true);
 			agentPublishService.unpublishAgent.mockResolvedValue({
 				activeVersionId: null,
-			} as Agent);
+			} as ProjectAgent);
 
 			const result = await getUnpublishTool(service).handler!({}, ctx);
 

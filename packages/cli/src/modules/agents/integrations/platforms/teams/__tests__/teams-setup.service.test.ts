@@ -8,7 +8,7 @@ import { JwtService, type UrlService } from '@n8n/backend-services';
 
 import type { CredentialsService } from '@/credentials/credentials.service';
 
-import type { Agent } from '../../../../entities/agent.entity';
+import type { Agent, ProjectAgent } from '../../../../entities/agent.entity';
 import { AgentCredentialLookupService } from '../../../agent-credential-lookup.service';
 import type { AgentRepository } from '../../../../repositories/agent.repository';
 import { TeamsArmTemplateService } from '../teams-arm-template.service';
@@ -43,7 +43,7 @@ describe('TeamsSetupService', () => {
 	 */
 	const agentWith = (integrations: Agent['integrations']) =>
 		Object.assign(
-			mock<Agent>({
+			mock<ProjectAgent>({
 				id: AGENT_ID,
 				projectId: PROJECT_ID,
 				name: 'Support Bot',
@@ -297,7 +297,7 @@ describe('TeamsSetupService', () => {
 	describe('a credential another agent already uses', () => {
 		const claimedByOtherAgent = () => {
 			agentRepository.findByIntegrationCredentialAnyProject.mockResolvedValue([
-				mock<Agent>({ name: 'Sales Bot' }),
+				mock<ProjectAgent>({ name: 'Sales Bot' }),
 			]);
 		};
 
