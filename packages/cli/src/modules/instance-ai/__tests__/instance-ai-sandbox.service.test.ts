@@ -369,6 +369,17 @@ describe('InstanceAiSandboxService', () => {
 			});
 		});
 
+		it.each([true, false])('passes daytonaTracingEnabled=%s to daytona sandboxes', (enabled) => {
+			const { service } = createSandboxService({
+				config: { ...daytonaEnvConfig, daytonaTracingEnabled: enabled },
+			});
+
+			expect(service.getSandboxConfigFromEnv()).toMatchObject({
+				provider: 'daytona',
+				tracingEnabled: enabled,
+			});
+		});
+
 		it('keeps daytona sandboxes non-ephemeral by default', () => {
 			const { service } = createSandboxService({
 				config: { ...daytonaEnvConfig, sandboxEphemeral: false },

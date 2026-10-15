@@ -233,6 +233,7 @@ export class InstanceAiSandboxService {
 			sandboxAutoArchiveMinutes,
 			sandboxAutoDeleteMinutes,
 			daytonaTokenRefreshSkewMs,
+			daytonaTracingEnabled,
 		} = this.instanceAiConfig;
 		const provider = normalizeSandboxProvider(sandboxProvider);
 		if (!sandboxEnabled) {
@@ -261,6 +262,7 @@ export class InstanceAiSandboxService {
 				// if we also pass a non-zero value, so leave it unset on the ephemeral path.
 				autoDeleteInterval: sandboxEphemeral ? undefined : sandboxAutoDeleteMinutes,
 				refreshSkewMs: daytonaTokenRefreshSkewMs,
+				tracingEnabled: daytonaTracingEnabled,
 			};
 		}
 

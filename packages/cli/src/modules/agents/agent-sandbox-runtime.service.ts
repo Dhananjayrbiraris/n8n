@@ -11,7 +11,7 @@ import {
 	type WorkspaceSandbox,
 } from '@n8n/agents/sandbox';
 import { Logger } from '@n8n/backend-common';
-import { AgentsConfig } from '@n8n/config';
+import { AgentsConfig, InstanceAiConfig } from '@n8n/config';
 import { Service } from '@n8n/di';
 import { redactText } from '@n8n/utils/redaction/redact-text';
 import { InstanceSettings } from 'n8n-core';
@@ -134,6 +134,7 @@ export class AgentSandboxRuntimeService {
 		private readonly instanceSettings: InstanceSettings,
 		private readonly agentRepository: AgentRepository,
 		private readonly sandboxSettingsService: SandboxSettingsService,
+		private readonly instanceAiConfig: InstanceAiConfig,
 	) {}
 
 	async warmKnowledgeSandbox(projectId: string, agentId: string): Promise<void> {
@@ -414,6 +415,7 @@ export class AgentSandboxRuntimeService {
 			labels,
 			timeout: this.agentsConfig.sandboxTimeout,
 			createTimeoutSeconds: Math.ceil(this.agentsConfig.sandboxTimeout / 1000),
+			tracingEnabled: this.instanceAiConfig.daytonaTracingEnabled,
 			...lifecycle,
 		};
 

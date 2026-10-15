@@ -50,3 +50,20 @@ describe('InstanceAiConfig concurrency caps', () => {
 		);
 	});
 });
+
+describe('InstanceAiConfig Daytona tracing', () => {
+	beforeEach(() => {
+		Container.reset();
+		vi.unstubAllEnvs();
+	});
+
+	it('defaults to false', () => {
+		expect(Container.get(GlobalConfig).instanceAi.daytonaTracingEnabled).toBe(false);
+	});
+
+	it('reads N8N_DAYTONA_TRACING_ENABLED', () => {
+		vi.stubEnv('N8N_DAYTONA_TRACING_ENABLED', 'true');
+
+		expect(Container.get(GlobalConfig).instanceAi.daytonaTracingEnabled).toBe(true);
+	});
+});

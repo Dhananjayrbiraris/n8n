@@ -85,6 +85,14 @@ export class InstanceAiConfig {
 	@Env('DAYTONA_API_KEY')
 	daytonaApiKey: string = '';
 
+	/**
+	 * Whether n8n creates OpenTelemetry spans for its calls to Daytona sandboxes.
+	 * Set to true to send these spans to your tracing endpoint with the workflow,
+	 * node, and agent spans.
+	 */
+	@Env('N8N_DAYTONA_TRACING_ENABLED')
+	daytonaTracingEnabled: boolean = false;
+
 	/** n8n sandbox service base URL. */
 	@Env('N8N_SANDBOX_SERVICE_URL')
 	n8nSandboxServiceUrl: string = '';

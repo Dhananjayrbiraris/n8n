@@ -5,7 +5,7 @@ import type {
 	WorkspaceSandbox,
 } from '@n8n/agents/sandbox';
 import type { Logger } from '@n8n/backend-common';
-import type { AgentsConfig } from '@n8n/config';
+import type { AgentsConfig, InstanceAiConfig } from '@n8n/config';
 import type { AiAssistantClient } from '@n8n_io/ai-assistant-sdk';
 import { mock } from 'vitest-mock-extended';
 import type { InstanceSettings } from 'n8n-core';
@@ -102,6 +102,7 @@ function makeService({
 	instanceSettings = mock<InstanceSettings>({ instanceId }),
 	agentRepository = makeAgentRepository(),
 	sandboxSettingsService = makeSandboxSettingsService(),
+	daytonaTracingEnabled = false,
 }: {
 	configOverrides?: Partial<AgentsConfig>;
 	logger?: Logger;
@@ -109,6 +110,7 @@ function makeService({
 	instanceSettings?: InstanceSettings;
 	agentRepository?: AgentRepository;
 	sandboxSettingsService?: SandboxSettingsService;
+	daytonaTracingEnabled?: boolean;
 } = {}): AgentSandboxRuntimeService {
 	return new AgentSandboxRuntimeService(
 		{
@@ -124,6 +126,7 @@ function makeService({
 		instanceSettings,
 		agentRepository,
 		sandboxSettingsService,
+		mock<InstanceAiConfig>({ daytonaTracingEnabled }),
 	);
 }
 
@@ -190,6 +193,7 @@ describe('AgentSandboxRuntimeService', () => {
 				ephemeral: true,
 				autoStopInterval: 15,
 				autoArchiveInterval: 60,
+				tracingEnabled: false,
 			}),
 			expect.anything(),
 		);
@@ -349,6 +353,7 @@ describe('AgentSandboxRuntimeService', () => {
 		const service = makeService({
 			configOverrides: { sandboxSnapshot: 'n8n/agent-knowledge:1.2.3' },
 			aiService,
+			daytonaTracingEnabled: true,
 		});
 
 		await service.warmKnowledgeSandbox(projectId, agentId);
@@ -356,6 +361,7 @@ describe('AgentSandboxRuntimeService', () => {
 		const config = createSandboxMock.mock.calls[0][0] as DaytonaSandboxConfig;
 		expect(config.daytonaApiUrl).toBe('https://sandbox-proxy.example');
 		expect(config.snapshot).toBe('n8n/agent-knowledge:1.2.3');
+		expect(config.tracingEnabled).toBe(true);
 		expect(config.image).toBeUndefined();
 		expect(client.getBuilderApiProxyToken).not.toHaveBeenCalled();
 

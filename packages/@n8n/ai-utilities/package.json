@@ -10,6 +10,9 @@
       "credential-description": [
         "dist/esm/utils/credential-description.d.ts"
       ],
+      "tracing-suppression": [
+        "dist/esm/utils/tracing-suppression.d.ts"
+      ],
       "text-editor": [
         "dist/esm/utils/workflow-text-editor.d.ts"
       ],
@@ -50,6 +53,11 @@
       "types": "./dist/esm/utils/credential-description.d.ts",
       "import": "./dist/esm/utils/credential-description.js",
       "require": "./dist/cjs/utils/credential-description.js"
+    },
+    "./tracing-suppression": {
+      "types": "./dist/esm/utils/tracing-suppression.d.ts",
+      "import": "./dist/esm/utils/tracing-suppression.js",
+      "require": "./dist/cjs/utils/tracing-suppression.js"
     },
     ".": {
       "types": "./dist/esm/index.d.ts",
@@ -136,6 +144,8 @@
     "@n8n/oxlint-config": "workspace:*",
     "@types/json-schema": "catalog:",
     "@n8n/vitest-config": "workspace:*",
+    "@opentelemetry/context-async-hooks": "^2.7.1",
+    "@opentelemetry/sdk-trace-base": "^2.10.0",
     "@vitest/coverage-v8": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
@@ -164,6 +174,8 @@
     "@n8n/backend-network": "workspace:*",
     "@n8n/typescript-config": "workspace:*",
     "@n8n/utils": "workspace:*",
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/core": "2.10.0",
     "n8n-workflow": "workspace:*",
     "tmp-promise": "catalog:",
     "js-tiktoken": "catalog:",

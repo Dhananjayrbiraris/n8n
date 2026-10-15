@@ -88,6 +88,7 @@ export interface DaytonaSandboxConfig extends EnabledSandboxConfigBase {
 	getAuthToken?: () => Promise<string>;
 	refreshSkewMs?: number;
 	logger?: Logger;
+	tracingEnabled?: boolean;
 }
 
 export interface N8nSandboxConfig extends EnabledSandboxConfigBase {

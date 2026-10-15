@@ -376,6 +376,7 @@ describe('GlobalConfig', () => {
 			sandboxSnapshot: '',
 			daytonaApiUrl: '',
 			daytonaApiKey: '',
+			daytonaTracingEnabled: false,
 			n8nSandboxServiceUrl: '',
 			n8nSandboxServiceApiKey: '',
 			sandboxTimeout: 300000,

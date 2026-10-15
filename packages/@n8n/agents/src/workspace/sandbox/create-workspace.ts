@@ -1,3 +1,5 @@
+import { suppressTracingOnMethods } from '@n8n/ai-utilities/tracing-suppression';
+
 import { DaytonaSandbox } from './daytona-sandbox';
 import { N8nSandboxServiceSandbox } from './n8n-sandbox-sandbox';
 import type {
@@ -28,7 +30,7 @@ function buildSandbox(
 	if (provider === 'daytona') {
 		const mode = config.getAuthToken ? 'proxy' : 'direct';
 		const logger = options.logger ?? config.logger;
-		return new DaytonaSandbox({
+		const sandbox = new DaytonaSandbox({
 			id: config.id,
 			name: config.name,
 			apiKey: config.getAuthToken ? undefined : config.daytonaApiKey,
@@ -55,6 +57,7 @@ function buildSandbox(
 			errorReporter: options.errorReporter,
 			createStrategyMode: mode,
 		});
+		return config.tracingEnabled === true ? sandbox : suppressTracingOnMethods(sandbox);
 	}
 
 	if (provider === 'n8n-sandbox') {
