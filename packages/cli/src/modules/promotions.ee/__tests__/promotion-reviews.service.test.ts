@@ -108,6 +108,7 @@ describe('PromotionReviewsService', () => {
 				connectionId: 'conn1',
 				type: 'gitlab',
 				remoteReviewId: '7!3',
+				createdById: 'actor',
 			},
 			expect.anything(),
 		);
@@ -133,7 +134,10 @@ describe('PromotionReviewsService', () => {
 		const result = await service.openMergeRequest(input, actor, push, undefined);
 
 		expect(result.mergeRequest?.reviewId).toEqual(expect.any(String));
-		expect(reviewRepository.insertReview).toHaveBeenCalled();
+		expect(reviewRepository.insertReview).toHaveBeenCalledWith(
+			expect.objectContaining({ createdById: 'actor' }),
+			expect.anything(),
+		);
 		expect(runRepository.attachReview).not.toHaveBeenCalled();
 	});
 

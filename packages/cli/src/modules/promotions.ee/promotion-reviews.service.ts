@@ -98,6 +98,7 @@ export class PromotionReviewsService {
 							connectionId: input.connectionId,
 							type,
 							remoteReviewId: parseRemoteReviewId(type, toGitLabReviewId({ projectId, iid })),
+							createdById: actor.id,
 						},
 						ctx,
 					);
