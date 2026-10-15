@@ -56,6 +56,9 @@ describe('Task cancellation persistence', () => {
 			createdAt: beforeStop,
 		});
 	});
+	afterEach(async () => {
+		await db.getRepository(AgentExecutionThread).delete({ agentId });
+	});
 	afterAll(async () => await testDb.terminate());
 
 	async function request(planId: string | null = null) {

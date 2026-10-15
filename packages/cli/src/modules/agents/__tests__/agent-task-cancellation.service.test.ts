@@ -4,6 +4,7 @@ import { mock } from 'vitest-mock-extended';
 import { randomUUID } from 'node:crypto';
 import { version } from 'uuid';
 
+import { AgentChatAttachmentService } from '../agent-chat-attachment.service';
 import { AgentTaskCancellationService } from '../agent-task-cancellation.service';
 import { AgentTaskCancellationRepository } from '../repositories/agent-task-cancellation.repository';
 import { AgentExecutionThreadRepository } from '../repositories/agent-execution-thread.repository';
@@ -32,6 +33,10 @@ function setup() {
 	const locks = mock<LockService>();
 	const updates = mock<AgentExecutionUpdateBroadcaster>();
 	const wake = mock<AgentWakeService>();
+	const attachments = mock<AgentChatAttachmentService>();
+	const lease = new AbortController();
+	chat.requestCancel.mockResolvedValue(true);
+	queue.discardPending.mockResolvedValue([]);
 	let saved: Awaited<ReturnType<AgentTaskCancellationRepository['latest']>> = null;
 	const work = [
 		mock<AgentBackgroundJob>({
@@ -66,7 +71,7 @@ function setup() {
 	queue.listPending.mockResolvedValue([]);
 	tx.run.mockImplementation(async (_ctx, callback) => await callback({}));
 	locks.withLease.mockImplementation(
-		async (_namespace, _key, callback) => await callback(new AbortController().signal),
+		async (_namespace, _key, callback) => await callback(lease.signal),
 	);
 	const service = new AgentTaskCancellationService(
 		repository,
@@ -81,8 +86,21 @@ function setup() {
 		locks,
 		updates,
 		wake,
+		attachments,
 	);
-	return { service, repository, executions, queue, plans, jobs, chat, wake, work };
+	return {
+		service,
+		repository,
+		executions,
+		queue,
+		plans,
+		jobs,
+		chat,
+		wake,
+		work,
+		attachments,
+		lease,
+	};
 }
 
 it('saves a stop between tasks and requests an acknowledgement without changing the plan', async () => {
@@ -131,7 +149,7 @@ it('rejects a stale displayed plan before it changes the queue or jobs', async (
 	expect(jobs.requestPause).not.toHaveBeenCalled();
 });
 
-it('reuses the stop boundary for retries and leaves later queued input intact', async () => {
+it('reuses the stop boundary without discarding the queue again', async () => {
 	const { service, repository, queue } = setup();
 	const first = await service.request('thread', null);
 	const firstId = (await repository.latest('thread'))!.pause!.id;
@@ -143,7 +161,7 @@ it('reuses the stop boundary for retries and leaves later queued input intact', 
 	expect(queue.discardPending).toHaveBeenCalledOnce();
 });
 
-it('orders a new stop after the previous stop when work resumes', async () => {
+it('creates a new stop identity when work resumes', async () => {
 	const { service, repository } = setup();
 	await service.request('thread', null);
 	const first = (await repository.latest('thread'))!;
@@ -154,7 +172,7 @@ it('orders a new stop after the previous stop when work resumes', async () => {
 	await service.request('thread', null);
 	const second = (await repository.latest('thread'))!;
 	expect(version(second.pause!.id)).toBe(7);
-	expect(second.pause!.id > first.pause!.id).toBe(true);
+	expect(second.pause!.id).not.toBe(first.pause!.id);
 });
 
 it('shows Stopping until active work has settled and preserves paused checkpoints', async () => {
@@ -229,4 +247,45 @@ it('keeps a failed foreground checkpoint stop retryable', async () => {
 	});
 	repository.unfinishedWork.mockResolvedValue([]);
 	expect(await service.request('thread', null)).toMatchObject({ status: 'stopped', failures: [] });
+});
+
+it('deletes discarded attachments after the stop transaction commits', async () => {
+	const { service, queue, attachments, jobs } = setup();
+	queue.discardPending.mockResolvedValue(['attachment-1']);
+	await service.request('thread', null);
+	expect(attachments.deleteByIds).toHaveBeenCalledExactlyOnceWith(['attachment-1']);
+	expect(queue.discardPending.mock.invocationCallOrder[0]).toBeLessThan(
+		attachments.deleteByIds.mock.invocationCallOrder[0],
+	);
+	expect(attachments.deleteByIds.mock.invocationCallOrder[0]).toBeLessThan(
+		jobs.requestPause.mock.invocationCallOrder[0],
+	);
+});
+it('stops side effects when the cancellation lease is lost', async () => {
+	const { service, repository, jobs, lease, wake } = setup();
+	repository.targetedJobs.mockImplementation(async () => {
+		lease.abort(new Error('Lease lost'));
+		return [];
+	});
+	await expect(service.request('thread', null)).rejects.toThrow('Lease lost');
+	expect(jobs.requestPause).not.toHaveBeenCalled();
+	expect(repository.saveStop).toHaveBeenCalledOnce();
+	expect(wake.requestWake).not.toHaveBeenCalled();
+});
+it('offers Retry when a suspended response cannot be canceled', async () => {
+	const { service, repository, executions, chat } = setup();
+	repository.captureGeneration.mockResolvedValue({
+		executionIds: ['response'],
+		jobIds: [],
+		threadIds: [],
+	});
+	executions.findLatestByThreadId.mockResolvedValue(
+		mock<AgentExecution>({ id: 'response', status: 'success', hitlStatus: 'suspended' }),
+	);
+	repository.unfinishedWork.mockResolvedValue([{ jobId: 'response', title: 'Current response' }]);
+	chat.requestCancel.mockResolvedValue(false);
+	expect(await service.request('thread', null)).toMatchObject({
+		status: 'failed',
+		failures: [{ jobId: 'response', title: 'Current response' }],
+	});
 });

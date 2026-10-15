@@ -257,11 +257,19 @@ export class AgentTaskCancellationRepository extends BaseRepository<AgentExecuti
 	}
 
 	async pendingPauseReports() {
-		const threads = await this.find({ where: { taskStop: Not(IsNull()) } });
-		return threads.flatMap((thread) => {
-			const stop = this.readStop(thread);
-			return stop && !stop.pause.reportedAt ? [thread.id] : [];
-		});
+		const isPostgres = this.manager.connection.options.type === 'postgres';
+		const pause = isPostgres
+			? 'thread."taskStop"->\'pause\''
+			: "json_extract(thread.taskStop, '$.pause')";
+		const reportedAt = isPostgres
+			? "thread.\"taskStop\"->'pause'->>'reportedAt'"
+			: "json_extract(thread.taskStop, '$.pause.reportedAt')";
+		const threads = await this.createQueryBuilder('thread')
+			.select('thread.id')
+			.where(`${pause} IS NOT NULL`)
+			.andWhere(`${reportedAt} IS NULL`)
+			.getMany();
+		return threads.map((thread) => thread.id);
 	}
 
 	async pauseReportPlan(stop: TaskStopScope) {
@@ -288,7 +296,7 @@ export class AgentTaskCancellationRepository extends BaseRepository<AgentExecuti
 			if (execution?.status === 'running' || (!execution && !failed)) return;
 			stop.pause.reportedAt = new Date().toISOString();
 			stop.pause.reportFailed =
-				failed || !execution || execution.status === 'error' || execution.status === 'interrupted';
+				failed || !execution || ['error', 'interrupted', 'cancelled'].includes(execution.status);
 			// Composer Stop also consumes this report. It must not trigger another reply.
 			await this.saveStop(stop, ctx);
 			const jobs = await this.targetedJobs(stop, ctx);

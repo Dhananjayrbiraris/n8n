@@ -93,6 +93,21 @@ describe('AgentBackgroundJobRepository', () => {
 		});
 	}
 
+	it.each([
+		['cancelled', null, 'Late result'],
+		['cancelled', 'Saved result', 'Saved result'],
+		['completed', null, null],
+		['failed', null, null],
+		['running', null, null],
+	] as const)(
+		'preserves late output only for a canceled job without output (%s, %s)',
+		async (status, result, expected) => {
+			const id = uuid();
+			await insertJob({ id, parentThreadId: uuid(), status, result });
+			await repository.preserveLateCompletedResult(id, 'Late result');
+			expect(await repository.findById(id)).toMatchObject({ status, result: expected });
+		},
+	);
 	it('admits five active tasks beside a paused group and fences concurrent spawns', async () => {
 		const parentThreadId = uuid();
 		const agent = await agentRepository.findOneByOrFail({ id: agentId });

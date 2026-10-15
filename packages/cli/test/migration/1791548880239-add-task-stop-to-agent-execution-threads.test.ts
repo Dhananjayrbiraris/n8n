@@ -112,7 +112,11 @@ describe('AddTaskStopToAgentExecutionThreads migration', () => {
 					`SELECT ${escape.columnName('id')} FROM ${escape.tableName('agent_execution')}`,
 				),
 			).toEqual([{ id: executionId }]);
-			expect(await queryRunner.hasTable(`${tablePrefix}agent_task_cancellation`)).toBe(false);
+			expect(
+				(await queryRunner.getTable(`${tablePrefix}agent_execution_threads`))?.findColumnByName(
+					'taskStop',
+				),
+			).toMatchObject({ isNullable: true });
 		});
 	});
 });

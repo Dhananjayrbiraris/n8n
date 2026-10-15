@@ -1314,7 +1314,7 @@ describe('registerWorkflowJob', () => {
 		);
 	});
 
-	it('stops a workflow registered after its source was canceled without waking the parent', async () => {
+	it('cancels a workflow registered after its source was canceled', async () => {
 		const { service, cancellation } = setup();
 		cancellation.isCancelled.mockResolvedValue(true);
 		const stop = vi.spyOn(service, 'cancel').mockResolvedValue('cancelled');
@@ -1820,8 +1820,16 @@ describe('background task update failures', () => {
 	);
 });
 
-it('uses the saved stopped plan when Continue has no explicit plan ID', async () => {
-	const { service, planWork, cancellation, executionRepository, messageRepository } = setup();
+it('reserves selected plan jobs and releases tasks after they resume', async () => {
+	const {
+		service,
+		planWork,
+		cancellation,
+		executionRepository,
+		messageRepository,
+		jobRepository,
+		updateBroadcaster,
+	} = setup();
 	cancellation.latest.mockResolvedValue({
 		threadId: 'thread-1',
 		planId: 'saved-plan',
@@ -1849,7 +1857,54 @@ it('uses the saved stopped plan when Continue has no explicit plan ID', async ()
 			],
 		]),
 	);
-	planWork.selectStoppedTasks.mockResolvedValue({ status: 'stopping' });
-	await service.preparePausedResume('agent-1', 'thread-1', 'draft-chat:user-1', 'execution-1');
+
+	const job = makeJob({
+		status: 'paused',
+		notifiedAt: new Date(),
+		pauseRequestId: 'stop',
+		planId: 'saved-plan',
+		planTaskId: 'task-1',
+	});
+	planWork.selectStoppedTasks.mockResolvedValue({
+		status: 'selected',
+		planId: 'saved-plan',
+		stopId: 'stop',
+		taskIds: ['task-1', 'task-2'],
+		jobs: [job],
+		blocked: [],
+	});
+	jobRepository.reservePlanJobs.mockResolvedValue('reserved');
+	const result = await service.preparePausedResume(
+		'agent-1',
+		'thread-1',
+		'draft-chat:user-1',
+		'execution-1',
+	);
 	expect(planWork.selectStoppedTasks).toHaveBeenCalledWith('thread-1', 'saved-plan', undefined);
+	expect(jobRepository.reservePlanJobs).toHaveBeenCalledWith(
+		'thread-1',
+		'stop',
+		[job.id],
+		expect.any(Date),
+		MAX_RUNNING_JOBS_PER_THREAD,
+	);
+	expect(result).toMatchObject({
+		status: 'ready',
+		jobs: [job],
+		selection: { planId: 'saved-plan', stopId: 'stop', taskIds: ['task-1', 'task-2'] },
+	});
+	await service.finishPlanResume(
+		'agent-1',
+		'thread-1',
+		{ planId: 'saved-plan', stopId: 'stop', taskIds: ['task-1', 'task-2'] },
+		[job.id],
+	);
+	expect(planWork.releaseStoppedTasks).toHaveBeenCalledWith(
+		'thread-1',
+		'saved-plan',
+		'stop',
+		['task-1', 'task-2'],
+		[job.id],
+	);
+	expect(updateBroadcaster.notifyBackgroundJobsUpdated).toHaveBeenCalledWith('agent-1', 'thread-1');
 });

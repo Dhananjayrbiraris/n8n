@@ -761,7 +761,7 @@ export class AgentBackgroundJobService {
 	async listCurrentGroupForThread(
 		parentAgentId: string,
 		parentThreadId: string,
-		options: { includePaused?: boolean; includeSettled?: boolean } = {},
+		options: { includePaused?: boolean } = {},
 	): Promise<Array<BackgroundJobGroupItem & Pick<AgentBackgroundJobDto, 'approval'>>> {
 		const candidates = await this.jobRepository.findGroupCandidates(parentAgentId, parentThreadId);
 		const stoppingRequests = new Set(
@@ -801,7 +801,6 @@ export class AgentBackgroundJobService {
 
 		// Keep stop outcomes visible in Preview after the parent consumes the report.
 		if (
-			!options.includeSettled &&
 			!group.some(
 				(job) =>
 					job.status === 'running' ||

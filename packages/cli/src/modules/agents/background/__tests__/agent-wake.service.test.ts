@@ -174,6 +174,38 @@ describe('AgentWakeService', () => {
 		}
 	});
 
+	it('retries a stop report that fails before admission and records failure only after the retry limit', async () => {
+		const { service, cancellations, orchestrator } = setup();
+		cancellations.latest.mockResolvedValue({
+			threadId: 'thread-1',
+			planId: null,
+			requestedAt: new Date().toISOString(),
+			generation: { executionIds: [], jobIds: [], threadIds: [] },
+			failures: [],
+			pause: { id: 'stop-1' },
+		});
+		cancellations.unfinishedWork.mockResolvedValue([]);
+		cancellations.targetedJobs.mockResolvedValue([]);
+		cancellations.pauseReportTarget.mockResolvedValue(
+			mock<AgentExecutionThread>({
+				id: 'thread-1',
+				agentId: 'agent-1',
+				projectId: 'project-1',
+				ownerId: user.id,
+			}),
+		);
+		orchestrator.executeForWake.mockRejectedValue(new Error('Temporarily unavailable'));
+		for (let attempt = 1; attempt < MAX_CONSECUTIVE_FAILED_WAKES; attempt++) {
+			await service.attemptWake('thread-1');
+			expect(cancellations.finishPauseReport).toHaveBeenLastCalledWith('thread-1', 'stop-1', false);
+		}
+		await service.attemptWake('thread-1');
+		expect(cancellations.finishPauseReport).toHaveBeenLastCalledWith('thread-1', 'stop-1', true);
+		expect(orchestrator.executeForWake).toHaveBeenCalledTimes(MAX_CONSECUTIVE_FAILED_WAKES);
+		await service.attemptWake('thread-1');
+		expect(orchestrator.executeForWake).toHaveBeenCalledTimes(MAX_CONSECUTIVE_FAILED_WAKES);
+	});
+
 	it('reports a plan stop without child jobs and disables tools', async () => {
 		const { service, cancellations, orchestrator } = setup();
 		const stop = {

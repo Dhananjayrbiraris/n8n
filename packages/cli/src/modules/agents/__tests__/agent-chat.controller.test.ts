@@ -430,7 +430,7 @@ describe('AgentChatController background tasks', () => {
 		expect(backgroundJobService.listCurrentGroupForThread).toHaveBeenCalledWith(
 			'agent-1',
 			'thread-1',
-			{ includePaused: true, includeSettled: false },
+			{ includePaused: true },
 		);
 		expect(backgroundJobService.markMailConsumed).not.toHaveBeenCalled();
 	});

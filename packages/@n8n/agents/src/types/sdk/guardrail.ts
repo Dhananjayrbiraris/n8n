@@ -16,7 +16,7 @@ export type GuardrailDecision = { action: 'allow' } | ({ action: 'stop' } & Guar
 
 export type GuardrailStop = {
 	code: string;
-	/** Record a refused tool call as canceled instead of failed. */
+	/** Record a stopped model or tool call as canceled. */
 	canceled?: true;
 };
 export type GuardrailModelCallSource = 'turn' | 'title' | 'memory';

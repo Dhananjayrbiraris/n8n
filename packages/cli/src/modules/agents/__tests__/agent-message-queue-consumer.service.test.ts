@@ -122,6 +122,26 @@ describe('AgentMessageQueueConsumer', () => {
 
 	afterEach(() => consumer.stop());
 
+	it('keeps ownership loss separate from a user Stop', async () => {
+		const item = claim('session');
+		const lease = new AbortController();
+		const failure = new DOMException('Execution ownership lost', 'AbortError');
+		executions.getAbortSignal.mockReturnValue(lease.signal);
+		repository.findThreadIds.mockResolvedValue(['session']);
+		queue.claimNext.mockResolvedValueOnce(item).mockResolvedValue(null);
+		testRuns.executePreparedDraftRun.mockImplementation(async () => {
+			lease.abort(failure);
+			throw failure;
+		});
+		consumer.start();
+		await vi.waitFor(() =>
+			expect(queue.settle).toHaveBeenCalledWith('session', item.admission.executionId),
+		);
+		const userSignal = chatExecutions.register.mock.calls[0][1].signal;
+		expect(userSignal.aborted).toBe(false);
+		expect(queue.recordFailure).toHaveBeenCalledWith(item, failure, userSignal);
+		expect(sender.send).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+	});
 	it('runs independent sessions without waiting and reuses each claimed execution', async () => {
 		const first = claim('first');
 		first.payload.message = 'edited first message';

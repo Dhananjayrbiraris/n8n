@@ -23,18 +23,23 @@ export interface AgentPlanItemDto {
 
 export interface AgentPlanSnapshotDto {
 	workState?: AgentPlanWorkState;
+	readiness: { ready: string[]; blocked: Array<{ id: string; blockedBy: string[] }> };
 	planId: string;
 	revision: number;
 	closed: boolean;
 	startedAt: string | null;
+	finishedAt?: string | null;
 	closedAt: string | null;
 	document: {
 		title: string;
 		description?: string;
 		presentation?: { label: string; detail?: string };
 		items: Array<
-			| (AgentPlanItemDto & { kind: 'task' })
-			| (AgentPlanItemDto & { kind: 'group'; tasks: Array<AgentPlanItemDto & { kind: 'task' }> })
+			| (AgentPlanItemDto & { kind: 'task'; fallbackFor?: string })
+			| (AgentPlanItemDto & {
+					kind: 'group';
+					tasks: Array<AgentPlanItemDto & { kind: 'task'; fallbackFor?: string }>;
+			  })
 		>;
 	};
 }

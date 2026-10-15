@@ -320,7 +320,11 @@ export class AgentWakeService {
 			if (failed) this.recordFailure(thread.id, generation);
 		} finally {
 			this.activeWakes.delete(thread.id);
-			await this.cancellations.finishPauseReport(thread.id, stop.pause.id, failed);
+			await this.cancellations.finishPauseReport(
+				thread.id,
+				stop.pause.id,
+				failed && (this.failures.get(thread.id)?.count ?? 0) >= MAX_CONSECUTIVE_FAILED_WAKES,
+			);
 			this.updates.notifyBackgroundJobsUpdated(thread.agentId, thread.id);
 		}
 	}

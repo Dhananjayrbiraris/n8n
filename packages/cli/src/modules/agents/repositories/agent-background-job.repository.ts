@@ -107,6 +107,11 @@ export class AgentBackgroundJobRepository extends BaseRepository<AgentBackground
 		await this.runInTransaction({}, async (manager, ctx) => {
 			await this.cancellations.lockScope(job.parentThreadId, ctx);
 			const { planTask, ...stored } = job;
+			if (
+				planTask &&
+				!(await manager.existsBy(AgentBackgroundJob, { childExecutionId: job.childExecutionId }))
+			)
+				await this.planWork.validateTask(job.parentThreadId, planTask, ctx, true);
 			await manager
 				.createQueryBuilder()
 				.insert()

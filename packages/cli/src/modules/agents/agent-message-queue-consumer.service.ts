@@ -1,4 +1,3 @@
-import { isAbortError } from '@n8n/agents';
 import type { AgentSseEvent } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import { UserRepository, type User } from '@n8n/db';
@@ -166,8 +165,13 @@ export class AgentMessageQueueConsumer {
 				await this.consumeIntegration(claim, signal, bridge);
 			}
 		} catch (error) {
-			await this.queue.recordFailure(claim, error, signal);
-			if (signal.aborted && isAbortError(signal.reason) && isAbortError(error)) {
+			await this.queue.recordFailure(claim, error, controller.signal);
+			const { isAbortError } = await import('@n8n/agents');
+			if (
+				controller.signal.aborted &&
+				isAbortError(controller.signal.reason) &&
+				isAbortError(error)
+			) {
 				sender?.send({ type: 'done', sessionId: thread.id, executionId: admission.executionId });
 				return;
 			}

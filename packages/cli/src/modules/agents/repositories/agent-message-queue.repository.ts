@@ -3,6 +3,7 @@ import { Service } from '@n8n/di';
 import { DataSource, In, IsNull, Not } from '@n8n/typeorm';
 import { isDraftIntegration } from '@n8n/api-types';
 
+import { readInboundUserMessage } from '../utils/inbound-attachments';
 import { AgentMessageEntity } from '../entities/agent-message.entity';
 import { AgentMessageQueue } from '../entities/agent-message-queue.entity';
 import { Agent } from '../entities/agent.entity';
@@ -101,7 +102,10 @@ export class AgentMessageQueueRepository extends BaseRepository<AgentMessageQueu
 	async discardPending(threadId: string, ctx: OperationContext) {
 		const manager = this.managerFor(ctx);
 		const items = await this.listPending(threadId, ctx);
-		if (!items.length) return;
+		if (!items.length) return [];
+		const attachmentIds = items.flatMap((item) =>
+			readInboundUserMessage(item.message.content).attachments.map((attachment) => attachment.id),
+		);
 		await manager.delete(AgentMessageQueue, { threadId, executionId: IsNull() });
 		await manager.update(
 			AgentMessageEntity,
@@ -113,6 +117,7 @@ export class AgentMessageQueueRepository extends BaseRepository<AgentMessageQueu
 				modelContextAt: null,
 			},
 		);
+		return attachmentIds;
 	}
 
 	async findHead(threadId: string, ctx: OperationContext) {

@@ -1855,6 +1855,8 @@ describe('AgentRuntime — guardrails', () => {
 				expect(results).toHaveLength(2);
 				for (const result of results) {
 					expect(result.canceled).toBe(true);
+					expect(result.output).toContain('user.cancel');
+					expect(result.output).not.toContain('User said');
 					expect(result.isError).not.toBe(true);
 				}
 				expect(chunks.some((chunk) => chunk.type === 'error')).toBe(false);

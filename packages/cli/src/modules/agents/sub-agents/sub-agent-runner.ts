@@ -380,7 +380,18 @@ export class SubAgentRunner {
 					shouldPause: async () =>
 						(await context.shouldPause?.()) ||
 						(await this.cancellations.hasPausedAncestor(threadId, {})),
-					guardrails: { hooks: [{ before: checkCancellation, beforeTool: checkCancellation }] },
+					guardrails: {
+						hooks: [
+							{
+								before: checkCancellation,
+								beforeTool: async () =>
+									(await checkCancellation()) ??
+									((await this.cancellations.hasPausedAncestor(threadId, {}))
+										? { action: 'stop' as const, code: 'tasks-stopped', canceled: true as const }
+										: undefined),
+							},
+						],
+					},
 				},
 				{
 					useRootSessionCap: true,
@@ -418,7 +429,10 @@ export class SubAgentRunner {
 			} else if (operation.type === 'resumePaused') {
 				resultStream = await agent.resumePaused({
 					...executionOptions,
-					hostMetadata: { [EXECUTION_METADATA_KEY]: executionId },
+					hostMetadata: {
+						[EXECUTION_METADATA_KEY]: executionId,
+						...(context.planTask ? { [PLAN_TASK_METADATA_KEY]: { ...context.planTask } } : {}),
+					},
 					runId: operation.request.childRunId,
 					onResumeClaimed: async () => {
 						await context.onResumeClaimed?.();
@@ -428,7 +442,10 @@ export class SubAgentRunner {
 			} else {
 				resultStream = await agent.resume('stream', operation.request.resumeData, {
 					...executionOptions,
-					hostMetadata: { [EXECUTION_METADATA_KEY]: executionId },
+					hostMetadata: {
+						[EXECUTION_METADATA_KEY]: executionId,
+						...(context.planTask ? { [PLAN_TASK_METADATA_KEY]: { ...context.planTask } } : {}),
+					},
 					runId: operation.request.childRunId,
 					toolCallId: operation.request.childToolCallId,
 					onResumeClaimed: async () => {

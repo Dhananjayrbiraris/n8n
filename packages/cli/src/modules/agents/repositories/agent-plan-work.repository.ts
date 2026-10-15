@@ -50,6 +50,13 @@ export class AgentPlanWorkRepository extends BaseRepository<AgentPlan> {
 		});
 	}
 
+	async jobStatesForPlan(planId: string, ctx: OperationContext = {}) {
+		return await this.managerFor(ctx).find(AgentBackgroundJob, {
+			where: { planId },
+			select: ['planTaskId', 'status', 'pauseRequestId', 'notifiedAt'],
+		});
+	}
+
 	async validateTask(
 		threadId: string,
 		ref: AgentPlanTaskRef | undefined,

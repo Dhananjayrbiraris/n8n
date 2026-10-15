@@ -216,6 +216,10 @@ export class SubAgentBackgroundRunner {
 					},
 					{
 						...context,
+						planTask:
+							job.planId && job.planTaskId
+								? { planId: job.planId, planTaskId: job.planTaskId }
+								: undefined,
 						shouldPause: async () => await this.jobService.shouldPause(job.id),
 						abortSignal: controller.signal,
 						selfDelegationDifficulty: metadata.difficulty,
@@ -322,6 +326,10 @@ export class SubAgentBackgroundRunner {
 					},
 					{
 						...context,
+						planTask:
+							job.planId && job.planTaskId
+								? { planId: job.planId, planTaskId: job.planTaskId }
+								: undefined,
 						abortSignal: controller.signal,
 						selfDelegationDifficulty: metadata.difficulty,
 						runtimeSnapshot: metadata.runtimeSnapshot,

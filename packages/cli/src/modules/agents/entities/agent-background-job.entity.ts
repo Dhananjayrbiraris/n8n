@@ -17,6 +17,7 @@ export type AgentBackgroundJobStatus = AgentBackgroundJobDto['status'];
 @Entity({ name: 'agent_background_job' })
 @Index(['parentThreadId', 'status'])
 @Index(['parentAgentId'])
+@Index(['sourceExecutionId'])
 @Index(['planId', 'planTaskId'])
 @Index(['settledAt'])
 @Index(['childExecutionId'], { unique: true, where: '"childExecutionId" IS NOT NULL' })

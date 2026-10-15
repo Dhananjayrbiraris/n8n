@@ -121,6 +121,27 @@ describe('delegate_subagent background mode', () => {
 		);
 	});
 
+	it.each(['execution-1', 42, undefined])(
+		'forwards string source execution metadata: %s',
+		async (id) => {
+			const { backgroundRunner, options } = setup();
+			backgroundRunner.spawn.mockResolvedValue({ status: 'started', jobId: 'job-1' });
+			const tool = createBackgroundDelegateTool(options);
+			await tool.handler!(
+				{ mode: 'background', subAgentId: 'sub-1', taskName: 'Research', goal: 'Research' },
+				{
+					persistence: {
+						...persistence,
+						hostMetadata: { ...persistence.hostMetadata, [EXECUTION_METADATA_KEY]: id },
+					},
+				} as never,
+			);
+			expect(backgroundRunner.spawn).toHaveBeenCalledWith(
+				expect.objectContaining({ sourceExecutionId: typeof id === 'string' ? id : undefined }),
+				expect.anything(),
+			);
+		},
+	);
 	it.each([255, 256])('enforces the stored job title limit (%s characters)', async (length) => {
 		const { backgroundRunner, options } = setup();
 		backgroundRunner.spawn.mockResolvedValue({ status: 'started', jobId: 'job-1' });

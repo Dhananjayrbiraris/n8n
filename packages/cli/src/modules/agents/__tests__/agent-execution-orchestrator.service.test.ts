@@ -1121,7 +1121,7 @@ describe('AgentExecutionOrchestratorService', () => {
 
 				await expect(resumeAgain()).rejects.toBeInstanceOf(AgentTurnAlreadyRunningError);
 
-				await chatExecutionService.handleCancel({
+				await chatExecutionService.handleForegroundCancel({
 					projectId,
 					agentId,
 					threadId: 'thread-1',
@@ -1151,7 +1151,7 @@ describe('AgentExecutionOrchestratorService', () => {
 			const { stream, onExecutionStarted, sdkStart, executionService, chatExecutionService } =
 				makeTurn({ previewChat: true });
 			onExecutionStarted.mockImplementation(() => {
-				void chatExecutionService.handleCancel({
+				void chatExecutionService.handleForegroundCancel({
 					projectId,
 					agentId,
 					threadId: 'thread-1',
@@ -1183,13 +1183,12 @@ describe('AgentExecutionOrchestratorService', () => {
 					expect.objectContaining({ type: 'error' }),
 				);
 				await writer.write({ type: 'text-delta', id: 'text-1', delta: 'Saved partial response.' });
-				await chatExecutionService.handleCancel({
+				await chatExecutionService.handleForegroundCancel({
 					projectId,
 					agentId,
 					threadId: 'thread-1',
 					executionId: 'execution-1',
 					userId,
-					scope: 'foreground',
 				});
 				const error = new Error('Agent run was aborted');
 				if (failure === 'chunk') {

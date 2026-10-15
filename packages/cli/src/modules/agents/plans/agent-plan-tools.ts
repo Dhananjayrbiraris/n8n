@@ -1,6 +1,7 @@
 import type { BuiltTool } from '@n8n/agents';
 import { Tool } from '@n8n/agents/tool';
-import { EXECUTION_METADATA_KEY } from '../types/agent-queued-message';
+import { planLeaves } from './agent-plan-work-state';
+import { executionIdFromMetadata } from '../types/agent-queued-message';
 import type { AgentPlanOperationContext } from '../repositories/agent-plan.repository';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -215,12 +216,23 @@ export function presentPlan(plan: AgentPlanSnapshot | null) {
 			.filter((timestamp): timestamp is string => timestamp !== null)
 			.sort()[0] ?? null;
 
+	const leaves = planLeaves(plan.data);
+	const finishedAt =
+		leaves.length > 0 && leaves.every((item) => !['pending', 'in_progress'].includes(item.status))
+			? (leaves
+					.map((item) => item.endedAt)
+					.filter((timestamp): timestamp is string => timestamp !== null)
+					.sort()
+					.at(-1) ?? null)
+			: null;
+
 	return {
 		planId: plan.id,
 		...(plan.workState ? { workState: plan.workState } : {}),
 		revision: plan.revision,
 		closed: plan.closedAt !== null,
 		startedAt,
+		finishedAt,
 		closedAt: plan.closedAt?.toISOString() ?? null,
 		document: {
 			...plan.data,
@@ -259,10 +271,7 @@ function scopedTool<Schema extends z.ZodType>(
 			try {
 				return presentPlan(
 					await handler(schema.parse(input), threadId, {
-						sourceExecutionId:
-							typeof context.persistence?.hostMetadata?.[EXECUTION_METADATA_KEY] === 'string'
-								? context.persistence.hostMetadata[EXECUTION_METADATA_KEY]
-								: undefined,
+						sourceExecutionId: executionIdFromMetadata(context.persistence?.hostMetadata),
 					}),
 				);
 			} catch (error) {

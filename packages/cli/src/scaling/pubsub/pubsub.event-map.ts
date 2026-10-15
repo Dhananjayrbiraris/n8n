@@ -145,7 +145,15 @@ export type PubSubCommandMap = {
 	};
 
 	'cancel-agent-chat-execution': {
-		scope?: 'foreground' | 'all';
+		projectId: string;
+		agentId: string;
+		threadId: string;
+		executionId: string;
+		userId: string;
+		productionN8nChat?: boolean;
+	};
+
+	'cancel-agent-chat-foreground': {
 		projectId: string;
 		agentId: string;
 		threadId: string;

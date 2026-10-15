@@ -87,10 +87,9 @@ describe('Agent background job source migration', () => {
 			expect(
 				table?.foreignKeys.filter((key) => key.columnNames.includes('sourceExecutionId')),
 			).toHaveLength(1);
-			expect(table?.findColumnByName('detached')).toBeUndefined();
 			expect(
-				(await queryRunner.getTable(`${tablePrefix}agent_message_queue`))?.findColumnByName('held'),
-			).toBeUndefined();
+				table?.indices.some((index) => index.columnNames.join(',') === 'sourceExecutionId'),
+			).toBe(true);
 			await runQuery(
 				`UPDATE ${escape.tableName('agent_background_job')} SET ${escape.columnName('sourceExecutionId')} = :executionId WHERE ${escape.columnName('id')} = :jobId`,
 				{ executionId, jobId },

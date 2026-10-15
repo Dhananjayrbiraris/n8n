@@ -7,7 +7,6 @@ import type {
 	SideCallUsageReport,
 	StreamChunk,
 } from '@n8n/agents';
-import { isAbortError } from '@n8n/agents';
 import type { AgentBackgroundJobSignal } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import { Service } from '@n8n/di';
@@ -144,8 +143,7 @@ export class AgentTurnExecutionService {
 			yield* this.streamTurn(stream, preparedTurn, config, recorder, state);
 		} catch (error) {
 			if (
-				state.executionId &&
-				this.isStoppedChatTurn(turn, config) &&
+				(await this.isStoppedChatTurn(turn, config)) &&
 				!(error instanceof AgentExecutionRecordingError)
 			)
 				return;
@@ -166,11 +164,13 @@ export class AgentTurnExecutionService {
 		}
 	}
 
-	private isStoppedChatTurn(
+	private async isStoppedChatTurn(
 		turn: AgentTurnRequest | undefined,
 		config: ExecuteTurnConfig,
-	): boolean {
+	): Promise<boolean> {
 		const signal = turn?.options.abortSignal;
+		if (!signal?.aborted || config.chatSurface === undefined) return false;
+		const { isAbortError } = await import('@n8n/agents');
 		return Boolean(
 			config.chatSurface !== undefined && signal?.aborted && isAbortError(signal.reason),
 		);
@@ -249,7 +249,7 @@ export class AgentTurnExecutionService {
 				continue;
 			}
 			// The runtime also emits an error chunk for a requested stop.
-			if (chunk.type === 'error' && this.isStoppedChatTurn(turn, config)) continue;
+			if (chunk.type === 'error' && (await this.isStoppedChatTurn(turn, config))) continue;
 			recorder.record(chunk);
 			if (chunk.type === 'tool-call-suspended') state.suspendedRunId = chunk.runId;
 			if (chunk.type === 'error') state.executionError = chunk.error;

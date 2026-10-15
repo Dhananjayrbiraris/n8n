@@ -908,7 +908,6 @@ export class AgentChatController {
 
 		const jobs = await this.backgroundJobService.listCurrentGroupForThread(agentId, threadId, {
 			includePaused: true,
-			includeSettled: !!(await this.taskCancellation.state(threadId)),
 		});
 		return this.mapBackgroundJobsToDto(jobs);
 	}

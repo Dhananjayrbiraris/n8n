@@ -126,6 +126,43 @@ describe('Plan task ownership and continuation', () => {
 		).resolves.toBeUndefined();
 	});
 
+	it('validates inherited workflow ownership before saving a new receipt', async () => {
+		const child = await db.getRepository(AgentExecutionThread).save({
+			id: randomUUID(),
+			parentThreadId: thread.id,
+			agentId,
+			projectId,
+			agentName: 'Child',
+		});
+		const input = {
+			id: randomUUID(),
+			kind: 'workflow' as const,
+			parentAgentId: agentId,
+			parentThreadId: child.id,
+			parentResourceId: 'draft-chat:test',
+			parentPrincipalHash: 'principal',
+			title: 'Workflow',
+			childExecutionId: randomUUID(),
+			workflowId: randomUUID(),
+			planTask: { planId, planTaskId: tasks[0].id },
+		};
+		await expect(
+			jobs.insertWorkflowJobOrGetExisting({
+				...input,
+				planTask: { planId, planTaskId: randomUUID() },
+			}),
+		).rejects.toThrow('leaf task');
+		await expect(
+			jobs.insertWorkflowJobOrGetExisting({ ...input, parentThreadId: 'foreign' }),
+		).rejects.toThrow('another conversation');
+		expect(await jobs.findById(input.id)).toBeNull();
+		expect(await jobs.insertWorkflowJobOrGetExisting(input)).toEqual({ inserted: true });
+		expect(await jobs.findById(input.id)).toMatchObject(input.planTask);
+		await db.getRepository(AgentPlan).update(planId, { closedAt: new Date() });
+		expect(await jobs.insertWorkflowJobOrGetExisting({ ...input, id: randomUUID() })).toMatchObject(
+			{ inserted: false, existing: { id: input.id } },
+		);
+	});
 	it('saves ownership before dispatch and preserves it when the plan is deleted', async () => {
 		const id = randomUUID();
 		await jobs.insertSubAgentJobIfCapacity(

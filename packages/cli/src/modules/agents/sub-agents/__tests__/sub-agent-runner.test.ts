@@ -217,6 +217,28 @@ describe('SubAgentRunner', () => {
 		]);
 	});
 
+	it('blocks a tool returned after an ancestor stops and retains the pause checkpoint path', async () => {
+		const shouldPause = vi.fn().mockResolvedValue(false);
+		await runner.run(spawnRequest, {
+			parentAgentId,
+			projectId,
+			credentialProvider,
+			runType: 'production',
+			shouldPause,
+		});
+		cancellations.isCancelled.mockResolvedValue(false);
+		cancellations.hasPausedAncestor.mockResolvedValue(true);
+		const options = childAgent.stream.mock.calls[0][1];
+		expect(await options?.guardrails?.hooks?.[0]?.beforeTool?.(mock())).toEqual({
+			action: 'stop',
+			code: 'tasks-stopped',
+			canceled: true,
+		});
+		expect(await options?.shouldPause?.()).toBe(true);
+		expect(shouldPause).toHaveBeenCalled();
+		expect(cancellations.hasPausedAncestor).toHaveBeenCalled();
+	});
+
 	it('rebuilds the child through the shared reconstruction service and runs it with a fresh prompt', async () => {
 		agentExecutionService.startExecutionRecording.mockImplementation(
 			async (_params, startedAt) => ({
@@ -819,7 +841,8 @@ describe('SubAgentRunner', () => {
 		});
 
 		const options = childAgent.stream.mock.calls[0]?.[1];
-		expect(options?.guardrails?.hooks).toEqual([]);
+		expect(options?.guardrails?.hooks).toHaveLength(1);
+		expect(options?.guardrails?.hooks[0].after).toBeUndefined();
 		expect(options?.guardrails?.onNotice).toBeDefined();
 	});
 
@@ -899,7 +922,12 @@ describe('SubAgentRunner', () => {
 			parentThreadId,
 			resumeContext: { agentId: 'agent-1', versionId: 'version-7' },
 		};
+		const planTask = {
+			planId: '00000000-0000-4000-a000-000000000001',
+			planTaskId: '00000000-0000-4000-a000-000000000002',
+		};
 		const runContext = {
+			planTask,
 			projectId,
 			parentAgentId,
 			credentialProvider,
@@ -926,10 +954,12 @@ describe('SubAgentRunner', () => {
 		expect(childAgent.resumePaused).toHaveBeenCalledWith(
 			expect.objectContaining({
 				runId: 'child-run-1',
-				hostMetadata: { n8nExecutionId: 'agent-execution-1' },
+				hostMetadata: { n8nExecutionId: 'agent-execution-1', n8nPlanTask: planTask },
 				shouldPause: expect.any(Function),
 			}),
 		);
+		expect(await childAgent.resumePaused.mock.calls[0][0].shouldPause?.()).toBe(true);
+		expect(shouldPause).toHaveBeenCalled();
 		expect(result).toMatchObject({
 			threadId: 'child-thread-1',
 			status: 'paused',

@@ -459,5 +459,5 @@ export class AgentChatCancelDto extends Z.class({
 }) {}
 
 export class AgentTaskCancellationDto extends Z.class({
-	planId: z.string().uuid().nullable(),
+	planId: z.string().uuid().toLowerCase().nullable(),
 }) {}

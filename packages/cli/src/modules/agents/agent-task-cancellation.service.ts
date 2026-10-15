@@ -7,6 +7,7 @@ import { Service } from '@n8n/di';
 import { ConflictError, NotFoundError } from '@n8n/errors';
 import { scrubSecretsInText } from '@n8n/utils/scrub-secrets';
 
+import { AgentChatAttachmentService } from './agent-chat-attachment.service';
 import { AgentChatExecutionService } from './agent-chat-execution.service';
 import { AgentExecutionUpdateBroadcaster } from './agent-execution-update-broadcaster';
 import { AgentPlanService } from './agent-plan.service';
@@ -36,14 +37,16 @@ export class AgentTaskCancellationService {
 		private readonly locks: LockService,
 		private readonly updates: AgentExecutionUpdateBroadcaster,
 		private readonly wake: AgentWakeService,
+		private readonly attachments: AgentChatAttachmentService,
 	) {}
 
 	async request(threadId: string, planId: string | null): Promise<AgentTaskCancellationState> {
 		return await this.locks.withLease(
 			LockNamespace.KNOWN_LOCKS,
 			`agent-task-cancellation:${threadId}`,
-			async () => {
-				const { thread, stop } = await this.txRunner.run({}, async (ctx) => {
+			async (signal) => {
+				signal.throwIfAborted();
+				const { thread, stop, attachmentIds } = await this.txRunner.run({}, async (ctx) => {
 					const thread = await this.threads.lockById(threadId, ctx);
 					if (!thread) throw new NotFoundError('Session not found');
 					const plan = await this.plans.findLatestPlan(threadId, ctx);
@@ -72,9 +75,13 @@ export class AgentTaskCancellationService {
 									},
 									ctx,
 								);
-					if (stop !== previous) await this.queue.discardPending(threadId, ctx);
-					return { thread, stop };
+					signal.throwIfAborted();
+					const attachmentIds =
+						stop !== previous ? await this.queue.discardPending(threadId, ctx) : [];
+					return { thread, stop, attachmentIds };
 				});
+				await this.attachments.deleteByIds(attachmentIds);
+				signal.throwIfAborted();
 				this.updates.notifyQueueUpdated(threadId);
 				const failures: AgentTaskStopFailure[] = [];
 				const execution = await this.executions.findLatestByThreadId(threadId);
@@ -85,7 +92,7 @@ export class AgentTaskCancellationService {
 					(execution.status === 'running' || execution.hitlStatus === 'suspended')
 				) {
 					try {
-						await this.chatExecutions.requestCancel({
+						const cancelled = await this.chatExecutions.requestCancel({
 							projectId: thread.projectId,
 							agentId: thread.agentId,
 							threadId,
@@ -94,6 +101,7 @@ export class AgentTaskCancellationService {
 							scope: 'foreground',
 							surface: 'preview',
 						});
+						if (!cancelled) failures.push({ jobId: execution.id, title: 'Current response' });
 					} catch {
 						failures.push({ jobId: execution.id, title: 'Current response' });
 					}
@@ -114,6 +122,7 @@ export class AgentTaskCancellationService {
 						resourceId: draftChatMemoryResourceId(thread.ownerId),
 					});
 				for (const [parentThreadId, scope] of scopes) {
+					signal.throwIfAborted();
 					try {
 						await this.jobs.requestPause(
 							scope.agentId,
@@ -133,6 +142,7 @@ export class AgentTaskCancellationService {
 						);
 					}
 				}
+				signal.throwIfAborted();
 				await this.txRunner.run({}, async (ctx) => {
 					await this.threads.lockById(threadId, ctx);
 					const jobs = await this.repository.targetedJobs(stop, ctx);
@@ -142,6 +152,7 @@ export class AgentTaskCancellationService {
 						const job = jobs.find((item) => item.id === failure.jobId);
 						return !job || ['running', 'suspended'].includes(job.status);
 					});
+					signal.throwIfAborted();
 					await this.repository.saveStop(latest, ctx);
 				});
 				this.updates.notifyBackgroundJobsUpdated(thread.agentId, threadId);

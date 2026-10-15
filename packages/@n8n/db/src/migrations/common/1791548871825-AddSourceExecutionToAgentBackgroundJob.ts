@@ -1,7 +1,9 @@
 import type { MigrationContext, ReversibleMigration } from '../migration-types';
 
 export class AddSourceExecutionToAgentBackgroundJob1791548871825 implements ReversibleMigration {
-	async up({ schemaBuilder: { addColumns, addForeignKey, column } }: MigrationContext) {
+	async up({
+		schemaBuilder: { addColumns, addForeignKey, column, createIndex },
+	}: MigrationContext) {
 		await addColumns(
 			'agent_background_job',
 			[column('sourceExecutionId').varchar(36).comment('Execution that dispatched this job')],
@@ -14,9 +16,11 @@ export class AddSourceExecutionToAgentBackgroundJob1791548871825 implements Reve
 			undefined,
 			'SET NULL',
 		);
+		await createIndex('agent_background_job', ['sourceExecutionId']);
 	}
 
-	async down({ schemaBuilder: { dropColumns } }: MigrationContext) {
+	async down({ schemaBuilder: { dropColumns, dropIndex } }: MigrationContext) {
+		await dropIndex('agent_background_job', ['sourceExecutionId']);
 		await dropColumns('agent_background_job', ['sourceExecutionId'], {
 			recreatesOnSqlite: true,
 		});

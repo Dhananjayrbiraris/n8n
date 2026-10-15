@@ -367,7 +367,7 @@ it('foreground Stop leaves detached jobs running locally and on other mains', as
 	await service.requestCancel({ ...context, scope: 'foreground' });
 	expect(controller.signal.aborted).toBe(true);
 	expect(backgroundJobs.cancelForParent).not.toHaveBeenCalled();
-	await service.handleCancel({ ...context, scope: 'foreground' });
+	await service.handleForegroundCancel(context);
 	expect(backgroundJobs.cancelForParent).not.toHaveBeenCalled();
 	expect(publisher.publishCommand).not.toHaveBeenCalled();
 });
@@ -377,16 +377,19 @@ it('relays foreground scope before a remote execution registers', async () => {
 	const mainB = makeService();
 	await mainB.service.requestCancel({ ...context, scope: 'foreground' });
 	const { surface: _surface, ...wireContext } = context;
-	const payload = { ...wireContext, productionN8nChat: false, scope: 'foreground' as const };
+	const payload = { ...wireContext, productionN8nChat: false };
 	expect(mainB.publisher.publishCommand).toHaveBeenCalledWith({
-		command: 'cancel-agent-chat-execution',
+		command: 'cancel-agent-chat-foreground',
 		payload,
 	});
-	await mainA.service.handleCancel(payload);
+	await mainA.service.handleForegroundCancel(payload);
 	const controller = new AbortController();
 	mainA.service.register(context, controller);
 	expect(controller.signal.aborted).toBe(true);
-	expect(controller.signal.reason).toBeInstanceOf(DOMException);
+	expect(controller.signal.reason).toMatchObject({
+		name: 'AbortError',
+		message: 'Response stopped',
+	});
 	expect(mainA.backgroundJobs.cancelForParent).not.toHaveBeenCalled();
 	expect(mainB.backgroundJobs.cancelForParent).not.toHaveBeenCalled();
 });
@@ -399,4 +402,17 @@ it('foreground Stop removes a suspended checkpoint without canceling detached jo
 	await service.requestCancel({ ...context, scope: 'foreground' });
 	expect(checkpointStorage.delete).toHaveBeenCalledWith('run-1', 'agent-1');
 	expect(backgroundJobs.cancelForParent).not.toHaveBeenCalled();
+});
+
+it('cancels detached jobs on the owner before a relayed run registers', async () => {
+	const { service, backgroundJobs } = makeService();
+	await service.handleCancel(context);
+	expect(backgroundJobs.cancelForParent).toHaveBeenCalledWith(
+		context.agentId,
+		context.threadId,
+		'draft-chat:user-1',
+	);
+	const controller = new AbortController();
+	service.register(context, controller);
+	expect(controller.signal.aborted).toBe(true);
 });

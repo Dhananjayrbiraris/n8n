@@ -4,7 +4,7 @@ import { mock } from 'vitest-mock-extended';
 
 import type { AgentPlanService } from '../../agent-plan.service';
 import { AgentPlanWriteConflictError } from '../../repositories/agent-plan.repository';
-import { createAgentPlanTools } from '../agent-plan-tools';
+import { createAgentPlanTools, presentPlan } from '../agent-plan-tools';
 import {
 	AgentPlanValidationError,
 	parseAgentPlan,
@@ -569,5 +569,53 @@ describe('Agent plan tools', () => {
 		});
 		expect(service.findActivePlan).not.toHaveBeenCalled();
 		expect(service.createActivePlan).not.toHaveBeenCalled();
+	});
+});
+
+it.each(['execution-1', 42, undefined])(
+	'passes only string execution metadata to plan writes: %s',
+	async (id) => {
+		await call('update_plan', { ...write, document: { description: 'New detail' } }, {
+			persistence: { ...context.persistence!, hostMetadata: { n8nExecutionId: id } },
+		} as ToolContext);
+		expect(service.replacePlan).toHaveBeenCalledWith(expect.anything(), {
+			sourceExecutionId: typeof id === 'string' ? id : undefined,
+		});
+	},
+);
+it('returns the runtime work state to the model', async () => {
+	const workState = {
+		stoppedTaskIds: [original.data.items[0].id],
+		stoppingTaskIds: [],
+		fullyStopped: true,
+		stoppedAt: new Date().toISOString(),
+		taskStateAvailable: true,
+	};
+	service.findActivePlan.mockResolvedValue({ ...original, workState });
+	expect(await call('read_plan', {})).toMatchObject({ workState });
+});
+
+it('uses the last task end time when all leaves finish before the plan closes', () => {
+	const first = {
+		...original.data.items[0],
+		status: 'done' as const,
+		endedAt: '2026-10-15T10:01:00.000Z',
+	};
+	const last = {
+		...original.data.items[0],
+		id: randomUUID(),
+		status: 'failed' as const,
+		endedAt: '2026-10-15T10:02:00.000Z',
+	};
+	const plan = { ...original, data: { ...original.data, items: [first, last] } };
+	expect(presentPlan(plan)).toMatchObject({ closed: false, finishedAt: last.endedAt });
+	expect(
+		presentPlan({
+			...plan,
+			data: { ...plan.data, items: [first, { ...last, status: 'pending', endedAt: null }] },
+		}),
+	).toMatchObject({ finishedAt: null });
+	expect(presentPlan({ ...plan, data: { ...plan.data, items: [] } })).toMatchObject({
+		finishedAt: null,
 	});
 });

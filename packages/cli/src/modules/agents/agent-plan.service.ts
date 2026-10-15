@@ -95,7 +95,7 @@ export class AgentPlanService {
 	): Promise<AgentPlanSnapshot> {
 		const [stop, jobs] = await Promise.all([
 			this.work.stopForPlan(threadId, plan.id, ctx),
-			this.work.jobsForPlan(plan.id, ctx),
+			this.work.jobStatesForPlan(plan.id, ctx),
 		]);
 		return { ...plan, workState: projectPlanWorkState(plan.data, stop, jobs) };
 	}

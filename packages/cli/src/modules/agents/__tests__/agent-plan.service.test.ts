@@ -46,7 +46,7 @@ const write = { threadId: record.threadId, planId: record.id, expectedRevision: 
 beforeEach(() => {
 	vi.resetAllMocks();
 	work.stopForPlan.mockResolvedValue(null);
-	work.jobsForPlan.mockResolvedValue([]);
+	work.jobStatesForPlan.mockResolvedValue([]);
 	repository.findPlan.mockResolvedValue(record);
 	repository.createActivePlan.mockResolvedValue(record);
 	repository.replacePlan.mockImplementation(async (input) => ({
