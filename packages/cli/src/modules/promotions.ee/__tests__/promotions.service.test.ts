@@ -491,6 +491,23 @@ describe('PromotionsService', () => {
 				]);
 			});
 
+			it('keeps the push and skips the review when the run cannot be recorded', async () => {
+				resolver.resolveForConnection.mockResolvedValue(branched());
+				runRepository.insertRun.mockRejectedValue(new Error('db down'));
+
+				const result = await service.promote('conn1', actor, {
+					canExportVariableValues: true,
+					commitMessage: 'm',
+				});
+
+				expect(result.git.commitSha).toBe('newsha');
+				expect(result.mergeRequest).toBeUndefined();
+				expect(reviewsService.openMergeRequest).not.toHaveBeenCalled();
+				expect(result.warnings).toEqual([
+					'The push succeeded, but n8n could not record the promotion run.',
+				]);
+			});
+
 			it('keeps the push result when the review service throws', async () => {
 				resolver.resolveForConnection.mockResolvedValue(branched());
 				reviewsService.openMergeRequest.mockRejectedValue(new Error('unexpected'));

@@ -107,7 +107,7 @@ export class GitLabMergeRequestClient {
 			body: {
 				source_branch: sourceBranch,
 				target_branch: targetBranch,
-				title,
+				title: title.slice(0, MERGE_REQUEST_TITLE_MAX_LENGTH),
 				description,
 				remove_source_branch: true,
 			},

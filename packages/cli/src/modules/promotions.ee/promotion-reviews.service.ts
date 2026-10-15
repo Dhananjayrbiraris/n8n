@@ -135,8 +135,8 @@ const settle = async <T>(run: () => Promise<T>): Promise<Result<T, unknown>> => 
 	}
 };
 
-const displayName = ({ firstName, lastName, email, id }: User) =>
-	[firstName, lastName].filter(Boolean).join(' ') || email || id;
+const displayName = ({ firstName, lastName, id }: User) =>
+	[firstName, lastName].filter(Boolean).join(' ') || id;
 
 const mergeRequestWarning = (branchName: string, error: unknown) => {
 	const prefix = `The branch ${branchName} was pushed, but no merge request was opened`;

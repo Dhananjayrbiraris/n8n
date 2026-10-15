@@ -99,6 +99,20 @@ describe('GitLabMergeRequestClient', () => {
 		});
 	});
 
+	it('shortens a title to the GitLab limit', async () => {
+		respond(201, mergeRequest);
+
+		await client.createMergeRequest(access, {
+			projectPath: 'platform/api',
+			sourceBranch: mergeRequest.source_branch,
+			targetBranch: 'main',
+			title: 'a'.repeat(300),
+			description: 'Opened by n8n',
+		});
+
+		expect(lastRequest().body).toMatchObject({ title: 'a'.repeat(255) });
+	});
+
 	it('reads one merge request by project id and iid', async () => {
 		respond(200, mergeRequest);
 

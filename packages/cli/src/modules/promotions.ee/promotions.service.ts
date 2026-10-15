@@ -60,7 +60,6 @@ import {
 	PACKAGE_SUBFOLDER,
 	PROMOTE_SELECTION_COMMIT_MESSAGE,
 } from './constants';
-import { MERGE_REQUEST_TITLE_MAX_LENGTH } from './git-hosts/gitlab-merge-request.client';
 import { PromotionBindingPreflightService } from './promotion-binding-preflight.service';
 import { PromotionConfigResolver } from './promotion-config.resolver';
 import { PromotionProvidersService } from './promotion-providers.service';
@@ -284,7 +283,8 @@ export class PromotionsService {
 			branchName: push.promotionBranchName ?? checkoutBranchName(input.config),
 			commitSha: push.commitSha,
 		});
-		if (!push.promotionBranchName) {
+		// A review without a run cannot be rendered: the branch and commit live on the run.
+		if (!push.promotionBranchName || !recorded.runId) {
 			return recorded.warnings.length > 0 ? { warnings: recorded.warnings } : {};
 		}
 		try {
@@ -295,7 +295,7 @@ export class PromotionsService {
 					branchName: push.promotionBranchName,
 					baseBranchName: checkoutBranchName(input.config),
 					commitSha: push.commitSha,
-					title: push.title.split('\n')[0].slice(0, MERGE_REQUEST_TITLE_MAX_LENGTH),
+					title: push.title.split('\n')[0],
 				},
 				recorded.runId,
 			);

@@ -114,6 +114,21 @@ describe('PromotionReviewsService', () => {
 		expect(runRepository.attachReview).toHaveBeenCalledWith('run-1', reviewId, expect.anything());
 	});
 
+	it('names the promoter by id and leaves their email off the merge request', async () => {
+		const unnamed = mock<User>({
+			id: 'actor',
+			firstName: null,
+			lastName: null,
+			email: 'ada@example.com',
+		});
+
+		await service.openMergeRequest(input, unnamed, push, 'run-1');
+
+		const description = mergeRequests.createMergeRequest.mock.calls[0][1].description;
+		expect(description).toContain('promotion by actor');
+		expect(description).not.toContain('ada@example.com');
+	});
+
 	it('records the review without a run when the push was not recorded', async () => {
 		const result = await service.openMergeRequest(input, actor, push, undefined);
 
