@@ -8,6 +8,9 @@ import type {
 } from 'n8n-workflow';
 
 import { authorizeJWT } from '@microsoft/agents-hosting';
+import { runWithTracingSuppressed } from '@n8n/ai-utilities/tracing-suppression';
+import { AiConfig } from '@n8n/config';
+import { Container } from '@n8n/di';
 
 import { getInputs } from '../../agents/Agent/V2/utils';
 
@@ -15,6 +18,7 @@ import {
 	type ActivityCapture,
 	configureAdapterProcessCallback,
 	createMicrosoftAgentApplication,
+	isMicrosoftObservabilityEnabled,
 	type MicrosoftAgent365Credentials,
 	microsoftMcpServers,
 } from './microsoft-utils';
@@ -243,7 +247,15 @@ export class MicrosoftAgent365Trigger implements INodeType {
 				return { noWebhookResponse: true };
 			}
 
-			await agent.adapter.process(req, res, callback);
+			const processActivity = async () => await agent.adapter.process(req, res, callback);
+			if (
+				Container.get(AiConfig).microsoftAgent365TracingEnabled ||
+				isMicrosoftObservabilityEnabled()
+			) {
+				await processActivity();
+			} else {
+				await runWithTracingSuppressed(processActivity);
+			}
 
 			if (
 				activityCapture.activity.type === 'event' ||

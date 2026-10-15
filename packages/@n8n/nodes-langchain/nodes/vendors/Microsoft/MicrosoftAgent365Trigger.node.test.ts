@@ -11,9 +11,12 @@ import {
 } from './microsoft-utils';
 import { MicrosoftAgent365Trigger } from './MicrosoftAgent365Trigger.node';
 import { authorizeJWT } from '@microsoft/agents-hosting';
+import { Container } from '@n8n/di';
 
 // Mock the dependencies
-vi.mock('./microsoft-utils', () => ({
+vi.mock('./microsoft-utils', async (importOriginal) => ({
+	isMicrosoftObservabilityEnabled: (await importOriginal<typeof import('./microsoft-utils')>())
+		.isMicrosoftObservabilityEnabled,
 	createMicrosoftAgentApplication: vi.fn(),
 	configureAdapterProcessCallback: vi.fn(),
 	microsoftMcpServers: [
@@ -24,6 +27,19 @@ vi.mock('./microsoft-utils', () => ({
 
 vi.mock('@microsoft/agents-hosting', () => ({
 	authorizeJWT: vi.fn(),
+}));
+
+const tracing = vi.hoisted(() => ({ suppressed: false }));
+
+vi.mock('@n8n/ai-utilities/tracing-suppression', () => ({
+	runWithTracingSuppressed: async <T>(fn: () => Promise<T>): Promise<T> => {
+		tracing.suppressed = true;
+		try {
+			return await fn();
+		} finally {
+			tracing.suppressed = false;
+		}
+	},
 }));
 
 vi.mock('../../agents/Agent/V2/utils', () => ({
@@ -164,6 +180,47 @@ describe('MicrosoftAgent365Trigger', () => {
 				(createMicrosoftAgentApplication as Mock).mockReturnValue({
 					agent: mockAgent,
 					authConfig: {},
+				});
+			});
+
+			describe('tracing', () => {
+				let processSuppressed: boolean | undefined;
+
+				beforeEach(() => {
+					processSuppressed = undefined;
+					mockAdapter.process.mockImplementation(async () => {
+						processSuppressed = tracing.suppressed;
+					});
+					(configureAdapterProcessCallback as Mock).mockReturnValue(vi.fn());
+				});
+
+				afterEach(() => {
+					vi.unstubAllEnvs();
+				});
+
+				test('should process the activity with tracing suppressed by default', async () => {
+					await microsoftAgent365Trigger.webhook!.call(mockWebhookFunctions);
+
+					expect(processSuppressed).toBe(true);
+				});
+
+				test('should keep tracing when N8N_MICROSOFT_AGENT_365_TRACING_ENABLED is true', async () => {
+					vi.mocked(Container.get).mockReturnValueOnce({
+						microsoftAgent365TracingEnabled: true,
+					} as never);
+
+					await microsoftAgent365Trigger.webhook!.call(mockWebhookFunctions);
+
+					expect(processSuppressed).toBe(false);
+				});
+
+				test('should keep tracing when the Microsoft observability exporter is enabled', async () => {
+					vi.stubEnv('ENABLE_OBSERVABILITY', 'true');
+					vi.stubEnv('ENABLE_A365_OBSERVABILITY_EXPORTER', 'true');
+
+					await microsoftAgent365Trigger.webhook!.call(mockWebhookFunctions);
+
+					expect(processSuppressed).toBe(false);
 				});
 			});
 

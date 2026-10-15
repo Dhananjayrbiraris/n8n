@@ -53,6 +53,15 @@ export class AiConfig {
 	@Env('N8N_AI_MODEL_STREAM_FIRST_OUTPUT_TIMEOUT_MS')
 	modelStreamFirstOutputTimeoutMs?: number;
 
+	/**
+	 * Whether the Microsoft Agent 365 Trigger node creates OpenTelemetry spans for
+	 * its calls through the Microsoft Agent 365 SDK. Set to true to send these spans
+	 * to your tracing endpoint. n8n also keeps these spans when you set both
+	 * `ENABLE_OBSERVABILITY` and `ENABLE_A365_OBSERVABILITY_EXPORTER` to true.
+	 */
+	@Env('N8N_MICROSOFT_AGENT_365_TRACING_ENABLED')
+	microsoftAgent365TracingEnabled: boolean = false;
+
 	get openAiDefaultHeaders(): Record<string, string> {
 		// eslint-disable-next-line @typescript-eslint/naming-convention
 		return { 'openai-platform': 'org-qkmJQuJ2WnvoIKMr2UJwIJkZ' };

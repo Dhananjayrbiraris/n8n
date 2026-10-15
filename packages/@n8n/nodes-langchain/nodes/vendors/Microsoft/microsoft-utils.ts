@@ -41,6 +41,7 @@ import {
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StructuredToolkit } from 'n8n-core';
 import { proxyFetch } from '@n8n/ai-utilities';
+import { runWithTracingRestored } from '@n8n/ai-utilities/tracing-suppression';
 import { connectMcpClient, getAllTools } from '../../mcp/shared/utils';
 import {
 	buildMcpToolName,
@@ -335,7 +336,7 @@ function getMcpServerHeaders(
 	return headers;
 }
 
-function isMicrosoftObservabilityEnabled(): boolean {
+export function isMicrosoftObservabilityEnabled(): boolean {
 	return (
 		process.env.ENABLE_OBSERVABILITY === 'true' &&
 		process.env.ENABLE_A365_OBSERVABILITY_EXPORTER === 'true'
@@ -587,14 +588,17 @@ export const configureActivityCallback = (
 					if (addMemberMessage) {
 						response = nodeContext.getNodeParameter('options.welcomeMessage', '') as string;
 					} else {
-						response = await invokeAgent(
-							nodeContext,
-							inputText,
-							systemPrompt,
-							{
-								configurable: { thread_id: turnContext.activity.conversation!.id },
-							},
-							microsoftMcpToolkits,
+						response = await runWithTracingRestored(
+							async () =>
+								await invokeAgent(
+									nodeContext,
+									inputText,
+									systemPrompt,
+									{
+										configurable: { thread_id: turnContext.activity.conversation!.id },
+									},
+									microsoftMcpToolkits,
+								),
 						);
 					}
 

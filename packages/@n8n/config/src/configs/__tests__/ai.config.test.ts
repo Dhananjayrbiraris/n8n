@@ -29,4 +29,14 @@ describe('AiConfig', () => {
 		expect(config.modelStreamIdleTimeoutMs).toBe(300_000);
 		expect(config.modelStreamFirstOutputTimeoutMs).toBe(600_000);
 	});
+
+	it('turns Microsoft Agent 365 tracing off by default', () => {
+		expect(Container.get(AiConfig).microsoftAgent365TracingEnabled).toBe(false);
+	});
+
+	it('reads N8N_MICROSOFT_AGENT_365_TRACING_ENABLED', () => {
+		vi.stubEnv('N8N_MICROSOFT_AGENT_365_TRACING_ENABLED', 'true');
+
+		expect(Container.get(AiConfig).microsoftAgent365TracingEnabled).toBe(true);
+	});
 });

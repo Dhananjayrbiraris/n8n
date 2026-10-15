@@ -5,6 +5,8 @@ import { mock } from 'vitest-mock-extended';
 
 import { createCallTool, mcpToolToDynamicTool } from '../../../mcp/McpClientTool/utils';
 import { connectMcpClient, getAllTools } from '../../../mcp/shared/utils';
+import { runWithTracingSuppressed } from '@n8n/ai-utilities/tracing-suppression';
+
 import { invokeAgent } from '../langchain-utils';
 import {
 	createMicrosoftAgentApplication,
@@ -87,6 +89,26 @@ vi.mock('@microsoft/agents-a365-runtime', () => ({
 vi.mock('@n8n/ai-utilities', () => ({
 	proxyFetch: vi.fn(),
 }));
+
+const tracing = vi.hoisted(() => ({ suppressed: false }));
+
+vi.mock('@n8n/ai-utilities/tracing-suppression', () => {
+	const runWithTracing =
+		(suppressed: boolean) =>
+		async <T>(fn: () => Promise<T>): Promise<T> => {
+			const previous = tracing.suppressed;
+			tracing.suppressed = suppressed;
+			try {
+				return await fn();
+			} finally {
+				tracing.suppressed = previous;
+			}
+		};
+	return {
+		runWithTracingSuppressed: runWithTracing(true),
+		runWithTracingRestored: runWithTracing(false),
+	};
+});
 
 vi.mock('@microsoft/agents-a365-tooling', () => ({
 	McpToolServerConfigurationService: vi.fn().mockImplementation(function () {
@@ -1469,6 +1491,33 @@ describe('microsoft-utils', () => {
 				{ configurable: { thread_id: 'conversation-id' } },
 				undefined,
 			);
+		});
+
+		test('should restore tracing for the agent run inside a suppressed activity', async () => {
+			(nodeContext.getNodeParameter as Mock).mockImplementation((param: string) =>
+				param === 'useMcpTools' ? false : undefined,
+			);
+			let agentSuppressed: boolean | undefined;
+			(invokeAgent as Mock).mockImplementation(async () => {
+				agentSuppressed = tracing.suppressed;
+				return 'Agent response';
+			});
+			let replySuppressed: boolean | undefined;
+			mockTurnContext.sendActivity.mockImplementation(async () => {
+				replySuppressed = tracing.suppressed;
+			});
+
+			const callback = configureActivityCallback(
+				nodeContext,
+				credentials,
+				mcpTokenRef,
+				mockAuthorization,
+				{ input: '', output: [], activity: {} },
+			);
+			await runWithTracingSuppressed(async () => await callback(mockTurnContext));
+
+			expect(agentSuppressed).toBe(false);
+			expect(replySuppressed).toBe(true);
 		});
 
 		test('should handle empty input text', async () => {

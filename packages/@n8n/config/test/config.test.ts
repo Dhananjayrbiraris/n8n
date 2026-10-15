@@ -682,6 +682,7 @@ describe('GlobalConfig', () => {
 			timeout: 3600000,
 			allowSendingParameterValues: true,
 			maxAgentPassthroughBinarySizeBytes: 50 * 1024 * 1024,
+			microsoftAgent365TracingEnabled: false,
 		},
 		workflowHistoryCompaction: {
 			batchDelayMs: 1_000,
